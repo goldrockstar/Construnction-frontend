@@ -238,7 +238,7 @@
 
 //       // Debugging: Log the profile data to the console
 //       console.log('Fetched profile data:', profileData);
-      
+
 //       setProjects(projectsData || []);
 //       setClients(clientsData || []);
 //       setProfile(profileData || {});
@@ -766,7 +766,7 @@ import { useNavigate } from 'react-router-dom';
 // Please ensure you import the correct component:
 import QuotationForm from '../projects/QuotationForm';
 // NOTE: Assuming your Modal component is named 'Modal'
-import Modal from '../model/Modal';
+import QuotationModel from '../model/QuotationModel';
 
 // Base API URL
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -780,7 +780,7 @@ const QuotationList = () => {
     const [error, setError] = useState(null);
     const [showFormModal, setShowFormModal] = useState(false);
     // 2. Rename State from 'currentInvoice' to 'currentQuotation'
-    const [currentQuotation, setCurrentQuotation] = useState(null); 
+    const [currentQuotation, setCurrentQuotation] = useState(null);
     const [messageModal, setMessageModal] = useState({ show: false, message: '', type: '', onConfirm: null });
 
     const showMessage = (message, type = 'alert', onConfirm = null) => {
@@ -836,7 +836,9 @@ const QuotationList = () => {
                 throw new Error('Token not found. Please log in.');
             }
 
-            // 5. Change API endpoint for DELETE
+            // 🎯 CRITICAL LOG: எந்த ID Delete செய்யப்படுகிறது என்று பார்க்கலாம்
+            console.log("Attempting to delete Quotation ID:", id);
+
             await axios.delete(`${API_BASE_URL}/quotations/${id}`, {
                 headers: {
                     'Content-Type': 'application/json',
@@ -844,11 +846,11 @@ const QuotationList = () => {
                 },
             });
 
-            // 6. Filter the 'quotations' state
-            setQuotations(quotations.filter(item => item._id !== id));
+            setQuotations(prevQuotations => prevQuotations.filter(item => item._id !== id));
             showMessage("Quotation deleted successfully!", 'alert');
         } catch (error) {
-            console.error("Error deleting quotation:", error);    
+            console.error("Error deleting quotation:", error);
+            // 🎯 ERROR MESSAGE-ஐக் காட்டுதல்
             showMessage("Failed to delete quotation: " + (error.response?.data?.message || error.message), 'alert');
         }
     };
@@ -868,13 +870,13 @@ const QuotationList = () => {
     const handleFormClose = () => {
         setShowFormModal(false);
         // Refresh the list after form submission/closing
-        fetchQuotations(); 
+        fetchQuotations();
     };
 
     // --- Print Handler ---
     const handlePrint = (id) => {
         // 8. Change navigation path for print
-        navigate(`/quotations/print/${id}`); 
+        navigate(`/quotations/print/${id}`);
     };
 
     if (loading) {
@@ -892,8 +894,8 @@ const QuotationList = () => {
 
     return (
         <div className="quotation-container p-6 sm:p-8 bg-gray-100 min-h-screen font-sans">
-            {messageModal.show && <Modal message={messageModal.message} onClose={handleCloseModal} onConfirm={messageModal.onConfirm} type={messageModal.type} />}
-            
+            {messageModal.show && <QuotationModel message={messageModal.message} onClose={handleCloseModal} onConfirm={messageModal.onConfirm} type={messageModal.type} />}
+
             <div className="flex justify-between items-center mb-6">
                 <h2 className='text-2xl font-bold text-gray-800'>Quotations</h2>
                 <button onClick={handleAdd} className='bg-green-600 text-white font-semibold py-2 px-6 rounded-full shadow-lg hover:bg-green-700 transition duration-200 flex items-center gap-2'>
@@ -921,26 +923,26 @@ const QuotationList = () => {
                             </tr>
                         </thead>
                         {/* Use <tbody> for the body content */}
-                        <tbody className='text-gray-600 text-sm font-light'> 
+                        <tbody className='text-gray-600 text-sm font-light'>
                             {quotations && quotations.map((item => (
                                 <tr key={item._id} className='border-b border-gray-200 hover:bg-gray-50'>
                                     {/* 11. Update Data Fields */}
                                     <td className='py-3 px-6 text-left whitespace-nowrap'>{item.quotationNumber || 'N/A'}</td>
                                     {/* Project Name is nested under 'projectId' or 'project' depending on API population */}
-                                    <td className='py-3 px-6 text-left whitespace-nowrap'>{item.projectId?.projectName || 'N/A'}</td> 
+                                    <td className='py-3 px-6 text-left whitespace-nowrap'>{item.projectId?.projectName || 'N/A'}</td>
                                     {/* Client Name is nested under 'quotationTo' */}
-                                    <td className='py-3 px-6 text-left whitespace-nowrap'>{item.quotationTo?.clientName || 'N/A'}</td> 
+                                    <td className='py-3 px-6 text-left whitespace-nowrap'>{item.quotationTo?.clientName || 'N/A'}</td>
                                     <td className='py-3 px-6 text-left whitespace-nowrap'>{item.quotationDate ? new Date(item.quotationDate).toLocaleDateString() : 'N/A'}</td>
                                     <td className='py-3 px-6 text-left whitespace-nowrap'>₹{item.totalAmount ? item.totalAmount.toFixed(2) : '0.00'}</td>
                                     <td className='py-3 px-6 text-left whitespace-nowrap'>
                                         <span className={`py-1 px-3 rounded-full text-xs font-semibold ${
                                             // Status remains the same logic
-                                            item.status === 'Draft' ? 'bg-yellow-200 text-yellow-800' : 
-                                            item.status === 'Sent' ? 'bg-blue-200 text-blue-800' : 
-                                            item.status === 'Accepted' ? 'bg-green-200 text-green-800' :
-                                            item.status === 'Rejected' ? 'bg-red-200 text-red-800' : 
-                                            'bg-gray-200 text-gray-800'
-                                        }`}>
+                                            item.status === 'Draft' ? 'bg-yellow-200 text-yellow-800' :
+                                                item.status === 'Sent' ? 'bg-blue-200 text-blue-800' :
+                                                    item.status === 'Accepted' ? 'bg-green-200 text-green-800' :
+                                                        item.status === 'Rejected' ? 'bg-red-200 text-red-800' :
+                                                            'bg-gray-200 text-gray-800'
+                                            }`}>
                                             {item.status || 'Draft'}
                                         </span>
                                     </td>
@@ -967,10 +969,10 @@ const QuotationList = () => {
                 <div className='fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-40'>
                     <div className='bg-white rounded-xl shadow-2xl p-6 sm:p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto'>
                         {/* 12. Use QuotationForm component */}
-                        <QuotationForm initialData={currentQuotation} onClose={handleFormClose} /> 
+                        <QuotationForm initialData={currentQuotation} onClose={handleFormClose} />
                     </div>
                 </div>
-            )}  
+            )}
         </div >
     );
 };

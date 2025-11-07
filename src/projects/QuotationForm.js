@@ -9,674 +9,767 @@ const API_BASE_URL = 'http://localhost:5000/api';
 // --- Utility Functions ---
 
 const calculateTotalAmount = (items) => {
-  return (Array.isArray(items) ? items : []).reduce((total, item) => {
-    // Materials: quantity * amount. Others (manpowers/expenditures): amount only (implicitly quantity is 1).
-    if (item.quantity !== undefined) {
-      const quantity = parseFloat(item.quantity) || 0;
-      const amount = parseFloat(item.amount) || 0;
-      return total + (quantity * amount);
-    }
-    const amount = parseFloat(item.amount) || 0;
-    return total + amount;
-  }, 0);
+  return (Array.isArray(items) ? items : []).reduce((total, item) => {
+    // Materials: quantity * amount. Others (manpowers/expenditures): amount only (implicitly quantity is 1).
+    if (item.quantity !== undefined) {
+      const quantity = parseFloat(item.quantity) || 0;
+      const amount = parseFloat(item.amount) || 0;
+      return total + (quantity * amount);
+    }
+    const amount = parseFloat(item.amount) || 0;
+    return total + amount;
+  }, 0);
 };
 
 const fetchActualMaterialExpenditures = async (projectId, token) => {
-  if (!projectId || !token) return [];
-  try {
-    const materialResponse = await fetch(`${API_BASE_URL}/projectMaterialMappings?projectId=${projectId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-    });
+  if (!projectId || !token) return [];
 
-    if (!materialResponse.ok) {
-      console.error(`Failed to fetch actual material expenditure: ${materialResponse.statusText}`);
-      return [];
-    }
-    const fetchedMaterials = await materialResponse.json();
-    
+  const finalProjectId = typeof projectId === ' object ' ? projectId._id : projectId;
+
+  if (!finalProjectId) return [];
+  try {
+    const materialResponse = await fetch(`${API_BASE_URL}/projectMaterialMappings?projectId=${projectId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+    });
+
+    if (!materialResponse.ok) {
+      console.error(`Failed to fetch actual material expenditure: ${materialResponse.statusText}`);
+      return [];
+    }
+    const fetchedMaterials = await materialResponse.json();
+
     // IMPORTANT MAPPING: material mappings might have 'finalAmount' or 'totalCost' 
     // but the quotation form uses 'quantity' * 'amount'. We need unitPrice.
-    return fetchedMaterials.map(item => ({
-      materialName: item.materialName || 'N/A',
-      quantity: parseFloat(item.quantity || 0),
-      unit: item.unit || 'Nos',
+    return fetchedMaterials.map(item => ({
+      materialName: item.materialName || 'N/A',
+      quantity: parseFloat(item.quantity || 0),
+      unit: item.unit || 'Nos',
       // We use the unitPrice if available for calculation in the form
-      amount: parseFloat(item.unitPrice || item.amount || 0), 
-      gst: parseFloat(item.gst || 0),
-    }));
-  } catch (err) {
-    console.error("Error fetching actual material expenditures:", err);
-    return [];
-  }
+      amount: parseFloat(item.unitPrice || item.amount || 0),
+      gst: parseFloat(item.gst || 0),
+    }));
+  } catch (err) {
+    console.error("Error fetching actual material expenditures:", err);
+    return [];
+  }
 };
 
 // --- QuotationTable Component (Remains same) ---
 
 const QuotationTable = React.memo(({ category, items, handleItemChange, handleAddItem, handleRemoveItem }) => {
-// ... (Your QuotationTable component code remains here, unchanged)
-    const columnConfigs = {
-        materials: [
-            { field: 'materialName', label: 'Material Name', placeholder: 'Enter material name', type: 'text' },
-            { field: 'quantity', label: 'Quantity', type: 'number' },
-            { field: 'unit', label: 'Unit', placeholder: 'e.g., Nos, Kg', type: 'text' },
-            { field: 'amount', label: 'Amount (per unit)', type: 'number' },
-            { field: 'gst', label: 'GST (%)', type: 'number' },
-        ],
-        manpowers: [
-            { field: 'manpowerName', label: 'Name', placeholder: 'Manpower name', type: 'text' },
-            { field: 'role', label: 'Role', placeholder: 'e.g., driver', type: 'text' },
-            { field: 'amount', label: 'Amount', type: 'number' },
-        ],
-        expenditures: [
-            { field: 'expenditureName', label: 'Expenditure Name', placeholder: 'e.g., food', type: 'text' },
-            { field: 'description', label: 'Description', placeholder: 'e.g., description', type: 'text' },
-            { field: 'amount', label: 'Amount', type: 'number' },
-        ],
-    };
+  // ... (Your QuotationTable component code remains here, unchanged)
+  const columnConfigs = {
+    materials: [
+      { field: 'materialName', label: 'Material Name', placeholder: 'Enter material name', type: 'text' },
+      { field: 'quantity', label: 'Quantity', type: 'number' },
+      { field: 'unit', label: 'Unit', placeholder: 'e.g., Nos, Kg', type: 'text' },
+      { field: 'amount', label: 'Amount (per unit)', type: 'number' },
+      { field: 'gst', label: 'GST (%)', type: 'number' },
+    ],
+    manpowers: [
+      { field: 'manpowerName', label: 'Name', placeholder: 'Manpower name', type: 'text' },
+      { field: 'role', label: 'Role', placeholder: 'e.g., driver', type: 'text' },
+      { field: 'amount', label: 'Amount', type: 'number' },
+    ],
+    expenditures: [
+      { field: 'expenditureName', label: 'Expenditure Name', placeholder: 'e.g., food', type: 'text' },
+      { field: 'description', label: 'Description', placeholder: 'e.g., description', type: 'text' },
+      { field: 'amount', label: 'Amount', type: 'number' },
+    ],
+  };
 
-    const columns = columnConfigs[category];
-    const title = category.charAt(0).toUpperCase() + category.slice(1).replace('s', '');
-    const addButtonText = `Add New ${title}`;
+  const columns = columnConfigs[category];
+  const title = category.charAt(0).toUpperCase() + category.slice(1).replace('s', '');
+  const addButtonText = `Add New ${title}`;
 
-    return (
-        <div className="space-y-4">
-            <h4 className="text-2xl font-semibold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">
-                {title} Cost
-            </h4>
-            <div className="overflow-x-auto rounded-lg shadow-md">
-                <table className="min-w-full bg-white border border-gray-200">
-                    <thead className="bg-blue-100">
-                        <tr>
-                            {columns.map((col, index) => (
-                                <th key={index} className="py-3 px-4 text-left text-sm font-semibold text-blue-700">
-                                    {col.label}
-                                </th>
-                            ))}
-                            <th className="py-3 px-4 text-left text-sm font-semibold text-blue-700">Line Total</th>
-                            <th className="py-3 px-4 text-center text-sm font-semibold text-blue-700 w-24">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {Array.isArray(items) && items.map((item, index) => (
-                            <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                                {columns.map((col, colIndex) => (
-                                    <td key={colIndex} className="p-2">
-                                        <input
-                                            type={col.type}
-                                            name={col.field}
-                                            // Use col.type === 'number' ? item[col.field] : (item[col.field] || '') to handle number fields not showing '0' initially
-                                            value={item[col.field] === undefined || item[col.field] === null ? '' : item[col.field]}
-                                            onChange={(e) => handleItemChange(category, index, e)}
-                                            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
-                                            placeholder={col.placeholder || ''}
-                                            min={col.type === 'number' ? '0' : undefined}
-                                            step={col.type === 'number' ? 'any' : undefined}
-                                        />
-                                    </td>
-                                ))}
-                                <td className="p-2 text-sm font-medium text-gray-700">
-                                    {/* Calculate Line Total based on category logic */}
-                                    {category === 'materials' ?
-                                        `₹${((parseFloat(item.quantity) || 0) * (parseFloat(item.amount) || 0)).toFixed(2)}` :
-                                        `₹${(parseFloat(item.amount) || 0).toFixed(2)}`
-                                    }
-                                </td>
-                                <td className="p-2 text-center">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRemoveItem(category, index)}
-                                        className="p-2 text-red-600 hover:text-red-800 transition-colors duration-200 rounded-full hover:bg-red-100"
-                                        aria-label={`Remove item`}
-                                    >
-                                        <Trash2 size={20} />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            <button
-                type="button"
-                onClick={() => handleAddItem(category)}
-                className="mt-4 px-6 py-2 bg-blue-100 text-blue-700 rounded-full shadow-sm hover:bg-blue-200 transition-colors duration-200 flex items-center justify-center gap-2 font-medium"
-            >
-                <PlusCircle size={16} />
-                {addButtonText}
-            </button>
-        </div>
-    );
+  return (
+    <div className="space-y-4">
+      <h4 className="text-2xl font-semibold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">
+        {title} Cost
+      </h4>
+      <div className="overflow-x-auto rounded-lg shadow-md">
+        <table className="min-w-full bg-white border border-gray-200">
+          <thead className="bg-blue-100">
+            <tr>
+              {columns.map((col, index) => (
+                <th key={index} className="py-3 px-4 text-left text-sm font-semibold text-blue-700">
+                  {col.label}
+                </th>
+              ))}
+              <th className="py-3 px-4 text-left text-sm font-semibold text-blue-700">Line Total</th>
+              <th className="py-3 px-4 text-center text-sm font-semibold text-blue-700 w-24">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.isArray(items) && items.map((item, index) => (
+              <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
+                {columns.map((col, colIndex) => (
+                  <td key={colIndex} className="p-2">
+                    <input
+                      type={col.type}
+                      name={col.field}
+                      // Use col.type === 'number' ? item[col.field] : (item[col.field] || '') to handle number fields not showing '0' initially
+                      value={item[col.field] === undefined || item[col.field] === null ? '' : item[col.field]}
+                      onChange={(e) => handleItemChange(category, index, e)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
+                      placeholder={col.placeholder || ''}
+                      min={col.type === 'number' ? '0' : undefined}
+                      step={col.type === 'number' ? 'any' : undefined}
+                    />
+                  </td>
+                ))}
+                <td className="p-2 text-sm font-medium text-gray-700">
+                  {/* Calculate Line Total based on category logic */}
+                  {category === 'materials' ?
+                    `₹${((parseFloat(item.quantity) || 0) * (parseFloat(item.amount) || 0)).toFixed(2)}` :
+                    `₹${(parseFloat(item.amount) || 0).toFixed(2)}`
+                  }
+                </td>
+                <td className="p-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(category, index)}
+                    className="p-2 text-red-600 hover:text-red-800 transition-colors duration-200 rounded-full hover:bg-red-100"
+                    aria-label={`Remove item`}
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={() => handleAddItem(category)}
+        className="mt-4 px-6 py-2 bg-blue-100 text-blue-700 rounded-full shadow-sm hover:bg-blue-200 transition-colors duration-200 flex items-center justify-center gap-2 font-medium"
+      >
+        <PlusCircle size={16} />
+        {addButtonText}
+      </button>
+    </div>
+  );
 });
 
 
 // --- QuotationForm Component ---
 
 const QuotationForm = ({ formTitle, onSubmit, initialData, submitButtonText }) => {
-  const navigate = useNavigate();
-  const { id } = useParams();
+  const navigate = useNavigate();
+  const { id } = useParams();
 
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [formData, setFormData] = useState(initialData || {
-    quotationDate: new Date().toISOString().slice(0, 10),
-    dueDate: '',
-    quotationNumber: '',
-    quotationFrom: '',
-    gstFrom: '',
-    addressFrom: '',
-    contactNumberFrom: '',
-    quotationTo: '',
-    quotationToName: '',
-    clientNameTo: '',
-    gstTo: '',
-    addressTo: '',
-    phoneTo: '',
-    totalAmount: 0,
-    signedDate: '',
-    termsAndConditions: '',
-    projectId: '',
-    materials: [],
-    manpowers: [],
-    expenditures: [],
-  });
-  const [projects, setProjects] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [profile, setProfile] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [formData, setFormData] = useState(initialData || {
+    quotationDate: new Date().toISOString().slice(0, 10),
+    dueDate: '',
+    logo: '',
+    quotationNumber: '',
+    quotationFrom: '',
+    gstFrom: '',
+    addressFrom: '',
+    contactNumberFrom: '',
+    quotationTo: '',
+    quotationToName: '',
+    clientNameTo: '',
+    gstTo: '',
+    addressTo: '',
+    phoneTo: '',
+    totalAmount: 0,
+    signedDate: '',
+    signature: '',
+    termsAndConditions: '',
+    projectId: '',
+    materials: [],
+    manpowers: [],
+    expenditures: [],
+  });
+  const [projects, setProjects] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [profile, setProfile] = useState({});
 
-  const updateCalculations = useCallback((data) => {
-    const materialTotal = calculateTotalAmount(data.materials);
-    const manpowerTotal = calculateTotalAmount(data.manpowers);
-    const expenditureTotal = calculateTotalAmount(data.expenditures);
-    return materialTotal + manpowerTotal + expenditureTotal;
-  }, []);
+  const updateCalculations = useCallback((data) => {
+    const materialTotal = calculateTotalAmount(data.materials);
+    const manpowerTotal = calculateTotalAmount(data.manpowers);
+    const expenditureTotal = calculateTotalAmount(data.expenditures);
+    return materialTotal + manpowerTotal + expenditureTotal;
+  }, []);
 
-  const updateFormWithProjectData = useCallback((project, client, prevData, profileData) => {
-    let updatedClientDetails = {};
-    if (client && project) {
-      updatedClientDetails = {
-        quotationTo: client._id,
-        quotationToName: client.clientName || '',
-        gstTo: project.gst || '',
-        addressTo: client.address || '',
-        phoneTo: client.phoneNumber || client.phone || '', // Check both fields
-      };
-    }
+  const updateFormWithProjectData = useCallback((project, client, prevData, profileData) => {
+    let updatedClientDetails = {};
+    if (client && project) {
+      updatedClientDetails = {
+        quotationTo: client._id,
+        quotationToName: client.clientName || '',
+        gstTo: project.gst || '',
+        addressTo: client.address || '',
+        phoneTo: client.phoneNumber || client.phone || '', // Check both fields
+      };
+    }
 
-    // NOTE: Project's ESTIMATED items (Usually not used when fetching actuals, but kept as fallback)
-    const projectMaterials = (project?.materials || []).map(item => ({
-      materialName: item.materialName || '',
-      quantity: item.quantity || 0,
-      unit: item.unit || 'Nos',
-      amount: item.amount || 0,
-      gst: item.gst || 0,
-    }));
+    // NOTE: Project's ESTIMATED items (Usually not used when fetching actuals, but kept as fallback)
+    const projectMaterials = (project?.materials || []).map(item => ({
+      materialName: item.materialName || '',
+      quantity: item.quantity || 0,
+      unit: item.unit || 'Nos',
+      amount: item.amount || 0,
+      gst: item.gst || 0,
+    }));
 
-    const projectManpowers = (project?.expenditures || []).filter(item => item.expenditureType === 'Salary').map(item => ({
-      manpowerName: item.expenditureName || item.manpowerName || '',
-      role: item.role || '',
-      amount: item.amount || 0,
-    }));
+    const projectManpowers = (project?.expenditures || []).filter(item => item.expenditureType === 'Salary').map(item => ({
+      manpowerName: item.expenditureName || item.manpowerName || '',
+      role: item.role || '',
+      amount: item.amount || 0,
+    }));
 
-    const projectExpenditures = (project?.expenditures || []).filter(item => item.expenditureType === 'Other').map(item => ({
-      expenditureName: item.expenditureName || '',
-      description: item.description || '',
-      amount: item.amount || 0,
-    }));
+    const projectExpenditures = (project?.expenditures || []).filter(item => item.expenditureType === 'Other').map(item => ({
+      expenditureName: item.expenditureName || '',
+      description: item.description || '',
+      amount: item.amount || 0,
+    }));
 
-    // Use the ACTUAL data if it was fetched and exists in prevData (which is `loadedQuotationData`)
-    const materialsToUse = prevData.materials?.length > 0 ? prevData.materials : projectMaterials;
-    const manpowersToUse = prevData.manpowers?.length > 0 ? prevData.manpowers : projectManpowers;
-    const expendituresToUse = prevData.expenditures?.length > 0 ? prevData.expenditures : projectExpenditures;
-
-
-    const newFormData = {
-      ...prevData,
-      ...updatedClientDetails,
-      // Load 'From' details from profile
-      quotationFrom: profileData?.profile?.companyName || '',
-      gstFrom: profileData?.profile?.gst || '',
-      addressFrom: profileData?.profile?.address || '',
-      contactNumberFrom: profileData?.profile?.contactNumber || '',
-
-      // 🎯 ITEMS-ஐப் புதுப்பிக்க (Actual Data-வைப் பயன்படுத்துகிறோம்)
-      materials: materialsToUse,
-      manpowers: manpowersToUse,
-      expenditures: expendituresToUse,
-
-      // Retain existing fields from loaded quotation data if available
-      quotationDate: prevData.quotationDate || new Date().toISOString().slice(0, 10),
-      dueDate: prevData.dueDate || '',
-      quotationNumber: prevData.quotationNumber || '',
-      termsAndConditions: prevData.termsAndConditions || '',
-      signedDate: prevData.signedDate || '',
-      projectId: prevData.projectId || project?._id || '',
-    };
-
-    return { ...newFormData, totalAmount: updateCalculations(newFormData) };
-  }, [updateCalculations]);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    const token = localStorage.getItem('token');
-    if (!token) {
-      toast.error('Authentication is required. Please log in.');
-      navigate('/login');
-      return;
-    }
-
-    try {
-      const [projectsRes, clientsRes, profileRes] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/projects`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/clients`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/users/profile`, { headers: { 'Authorization': `Bearer ${token}` } }),
-      ]);
-
-      const projectsData = projectsRes.status === 'fulfilled' && projectsRes.value.ok ? await projectsRes.value.json() : [];
-      const clientsData = clientsRes.status === 'fulfilled' && clientsRes.value.ok ? await clientsRes.value.json() : [];
-      const profileData = profileRes.status === 'fulfilled' && profileRes.value.ok ? await profileRes.value.json() : {};
-
-      setProjects(projectsData);
-      setClients(clientsData);
-      setProfile(profileData);
-
-      let loadedQuotationData = initialData || {};
-
-      if (id) {
-        // Fetch existing quotation data
-        const quotationRes = await fetch(`${API_BASE_URL}/quotations/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (quotationRes.ok) {
-          loadedQuotationData = await quotationRes.json();
-          // NOTE: For existing quotation, we trust the saved item lists, 
-          // so we don't fetch actuals here.
-        } else {
-          toast.error('Failed to fetch quotation data.');
-        }
-      }
-
-      const selectedProjectId = loadedQuotationData.projectId || (loadedQuotationData.project && loadedQuotationData.project._id);
-      let selectedProject = projectsData.find(p => p && p._id === selectedProjectId);
-      let client = clientsData.find(c => c && c._id === (selectedProject?.client?._id || loadedQuotationData.quotationTo?.clientId)); // Check for nested clientId
-
-      // If NEW QUOTATION or if a project is pre-selected, load ACTUAL Project Data
-      if (!id && selectedProjectId) {
-        // 1. Fetch ALL Expenditures (Salary & Other)
-        const allExpenditureResponse = await fetch(`${API_BASE_URL}/expenditures?projectId=${selectedProjectId}`, {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const fetchedExpenditures = allExpenditureResponse.ok ? await allExpenditureResponse.json() : [];
-
-        // 2. Fetch Actual Materials
-        const fetchedMaterials = await fetchActualMaterialExpenditures(selectedProjectId, token);
+    // Use the ACTUAL data if it was fetched and exists in prevData (which is `loadedQuotationData`)
+    const materialsToUse = prevData.materials?.length > 0 ? prevData.materials : projectMaterials;
+    const manpowersToUse = prevData.manpowers?.length > 0 ? prevData.manpowers : projectManpowers;
+    const expendituresToUse = prevData.expenditures?.length > 0 ? prevData.expenditures : projectExpenditures;
 
 
-        // 3. Map Actual Expenditures to Quotation Form State structure
-        loadedQuotationData.manpowers = fetchedExpenditures
-          .filter(item => item.expenditureType === 'Salary')
-          .map(item => ({
-            manpowerName: item.manpowerName || 'N/A',
-            role: item.description || 'N/A', // Using description for role
-            amount: parseFloat(item.amount || 0),
-          }));
+    const newFormData = {
+      ...prevData,
+      ...updatedClientDetails,
+      // Load 'From' details from profile
+      quotationFrom: profileData?.profile?.companyName || '',
+      gstFrom: profileData?.profile?.gst || '',
+      addressFrom: profileData?.profile?.address || '',
+      contactNumberFrom: profileData?.profile?.contactNumber || '',
 
-        loadedQuotationData.expenditures = fetchedExpenditures
-          .filter(item => item.expenditureType === 'Other')
-          .map(item => ({
-            expenditureName: item.expenditureName || 'N/A',
-            description: item.description || 'N/A',
-            amount: parseFloat(item.amount || 0),
-          }));
+      // 🎯 ITEMS-ஐப் புதுப்பிக்க (Actual Data-வைப் பயன்படுத்துகிறோம்)
+      materials: materialsToUse,
+      manpowers: manpowersToUse,
+      expenditures: expendituresToUse,
 
-        loadedQuotationData.materials = fetchedMaterials;
-      }
-      // END ACTUAL DATA LOADING LOGIC (Only for new/pre-selected project)
+      // Retain existing fields from loaded quotation data if available
+      quotationDate: prevData.quotationDate || new Date().toISOString().slice(0, 10),
+      dueDate: prevData.dueDate || '',
+      logo: prevData.logo || '',
+      quotationNumber: prevData.quotationNumber || '',
+      termsAndConditions: prevData.termsAndConditions || '',
+      signedDate: prevData.signedDate || '',
+      signature: prevData.signature || '',
+      projectId: prevData.projectId || project?._id || '',
+    };
 
-      if (!id && Object.keys(profileData).length > 0) {
-        loadedQuotationData = {
-          ...loadedQuotationData,
-          quotationFrom: profileData.profile?.companyName || '',
-          gstFrom: profileData.profile?.gst || '',
-          addressFrom: profileData.profile?.address || '',
-          contactNumberFrom: profileData.profile?.contactNumber || '',
-        };
-      }
+    return { ...newFormData, totalAmount: updateCalculations(newFormData) };
+  }, [updateCalculations]);
 
-      const newFormData = updateFormWithProjectData(selectedProject, client, loadedQuotationData, profileData);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Authentication is required. Please log in.');
+      navigate('/login');
+      return;
+    }
 
-      // Recalculate total amount after loading all line items
-      newFormData.totalAmount = updateCalculations(newFormData);
+    try {
+      const [projectsRes, clientsRes, profileRes] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/projects`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/clients`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/users/profile`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      ]);
 
-      setFormData(newFormData);
-    } catch (error) {
-      console.error('An unexpected error occurred during initial data fetch:', error);
-      toast.error(`An unexpected error occurred: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate, id, initialData, updateFormWithProjectData, updateCalculations]);
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+      const projectsData = projectsRes.status === 'fulfilled' && projectsRes.value.ok ? await projectsRes.value.json() : [];
+      const clientsData = clientsRes.status === 'fulfilled' && clientsRes.value.ok ? await clientsRes.value.json() : [];
+      const profileData = profileRes.status === 'fulfilled' && profileRes.value.ok ? await profileRes.value.json() : {};
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData(prevData => {
-      const newData = { ...prevData, [name]: value };
-      return { ...newData, totalAmount: updateCalculations(newData) };
-    });
-  }, [updateCalculations]);
+      setProjects(projectsData);
+      setClients(clientsData);
+      setProfile(profileData);
 
-  // 🎯 Project Change Handler - ACTUAL data loading logic
-  const handleProjectChange = useCallback(async (e) => {
-    const projectId = e.target.value;
+      // 🎯 FIX 1: initialData-வை நேரடியாகப் பயன்படுத்துங்கள், இல்லையெனில் வெற்று ஆப்ஜெக்ட்
+      let loadedQuotationData = initialData && Object.keys(initialData).length > 0 ? initialData : {};
 
-    if (!projectId) {
-      setFormData(prevData => ({ 
-           ...prevData, 
-           projectId: '', 
-           quotationTo: '', 
-           quotationToName: '', gstTo: '', addressTo: '', phoneTo: '', 
-           materials: [], manpowers: [], expenditures: [], totalAmount: 0 
+      if (id) {
+        // Fetch existing quotation data via URL ID
+        const quotationRes = await fetch(`${API_BASE_URL}/quotations/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (quotationRes.ok) {
+          loadedQuotationData = await quotationRes.json();
+        } else {
+          toast.error('Failed to fetch quotation data.');
+        }
+      }
+
+      // --- Project ID-ஐப் பிரித்தெடுத்தல் மற்றும் சரிபார்த்தல் (Critical Fix) ---
+
+      // 🎯 FIX 2: Project ID-ஐ ஒரு String-ஆகப் பிரித்தெடுத்தல்
+      let currentProjectId = loadedQuotationData.projectId;
+
+      // Nested structure-இல் இருந்து ID-ஐப் பெறுதல் (Backend format: { _id: '...' })
+      if (typeof currentProjectId === 'object' && currentProjectId !== null && currentProjectId._id) {
+        currentProjectId = currentProjectId._id;
+      } else if (loadedQuotationData.project && loadedQuotationData.project._id) {
+        // சில சமயம் project முழு object-ஆக இருக்கும்
+        currentProjectId = loadedQuotationData.project._id;
+      }
+
+      // Project-ஐக் கண்டறிய, பிரித்தெடுக்கப்பட்ட ID-ஐப் பயன்படுத்துக.
+      let selectedProject = projectsData.find(p => p && p._id === currentProjectId);
+
+      // Client ID-ஐப் பிரித்தெடுத்தல்
+      let client = clientsData.find(c => c && c._id === (selectedProject?.client?._id || loadedQuotationData.quotationTo?.clientId));
+
+      // -----------------------------------------------------------------
+
+      // If NEW QUOTATION or if a project is pre-selected, load ACTUAL Project Data
+      if (!id && currentProjectId) {
+
+        // 1. Fetch ALL Expenditures (Salary & Other)
+        const allExpenditureResponse = await fetch(`${API_BASE_URL}/expenditures?projectId=${currentProjectId}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const fetchedExpenditures = allExpenditureResponse.ok ? await allExpenditureResponse.json() : [];
+
+        // 2. Fetch Actual Materials (Utility Function-இல் உள்ளே உள்ள FIX-ஐப் பார்க்கவும்)
+        const fetchedMaterials = await fetchActualMaterialExpenditures(currentProjectId, token);
+
+
+        // 3. Map Actual Expenditures to Quotation Form State structure
+        loadedQuotationData.manpowers = fetchedExpenditures
+          .filter(item => item.expenditureType === 'Salary')
+          .map(item => ({
+            manpowerName: item.manpowerName || 'N/A',
+            role: item.description || 'N/A', // Using description for role
+            amount: parseFloat(item.amount || 0),
+          }));
+
+        loadedQuotationData.expenditures = fetchedExpenditures
+          .filter(item => item.expenditureType === 'Other')
+          .map(item => ({
+            expenditureName: item.expenditureName || 'N/A',
+            description: item.description || 'N/A',
+            amount: parseFloat(item.amount || 0),
+          }));
+
+        loadedQuotationData.materials = fetchedMaterials;
+      }
+      // END ACTUAL DATA LOADING LOGIC (Only for new/pre-selected project)
+
+      // Profile Data மற்றும் Project ID-ஐ இறுதிப் படிவத்தில் அமைத்தல்
+      loadedQuotationData.projectId = currentProjectId || ''; // Ensure the final project ID is set
+
+      if (!id && Object.keys(profileData).length > 0) {
+        loadedQuotationData = {
+          ...loadedQuotationData,
+          quotationFrom: profileData.profile?.companyName || '',
+          gstFrom: profileData.profile?.gst || '',
+          addressFrom: profileData.profile?.address || '',
+          contactNumberFrom: profileData.profile?.contactNumber || '',
+        };
+      }
+
+      const newFormData = updateFormWithProjectData(selectedProject, client, loadedQuotationData, profileData);
+
+      // Recalculate total amount after loading all line items
+      newFormData.totalAmount = updateCalculations(newFormData);
+
+      setFormData(newFormData);
+    } catch (error) {
+      console.error('An unexpected error occurred during initial data fetch:', error);
+      toast.error(`An unexpected error occurred: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate, id, initialData, updateFormWithProjectData, updateCalculations]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData(prevData => {
+      const newData = { ...prevData, [name]: value };
+      return { ...newData, totalAmount: updateCalculations(newData) };
+    });
+  }, [updateCalculations]);
+
+  // 🎯 Project Change Handler - ACTUAL data loading logic
+  const handleProjectChange = useCallback(async (e) => {
+    const projectId = e.target.value;
+
+    if (!projectId) {
+      setFormData(prevData => ({
+        ...prevData,
+        projectId: '',
+        // Client details must be explicitly cleared when project is deselected
+        quotationTo: '',
+        quotationToName: '', gstTo: '', addressTo: '', phoneTo: '',
+        materials: [], manpowers: [], expenditures: [], totalAmount: 0
+      }));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const selectedProject = projects.find(p => p && p._id === projectId);
+      // Client is usually linked via the project object.
+      // Use the client ID nested under `selectedProject.client?._id`
+      const client = clients.find(c => c && c._id === selectedProject?.client?._id);
+
+      // 1. Get Token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Authentication failed. Please log in.');
+        setLoading(false);
+        return;
+      }
+
+      // --- Fetch Actual Project Data ---
+      // 2. Fetch ALL Expenditures (Salary & Other)
+      const allExpenditureResponse = await fetch(`${API_BASE_URL}/expenditures?projectId=${projectId}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const fetchedExpenditures = allExpenditureResponse.ok ? await allExpenditureResponse.json() : [];
+
+      // 3. Fetch Actual Materials 
+      const fetchedMaterials = await fetchActualMaterialExpenditures(projectId, token);
+      // ---------------------------------
+
+      // 4. Map Actual Expenses to structure
+      const actualItems = {};
+
+      actualItems.manpowers = fetchedExpenditures
+        .filter(item => item.expenditureType === 'Salary')
+        .map(item => ({
+          manpowerName: item.manpowerName || 'N/A',
+          role: item.description || 'N/A',
+          amount: parseFloat(item.amount || 0)
         }));
-      return;
-    }
 
-    setLoading(true);
-    try {
-      const selectedProject = projects.find(p => p && p._id === projectId);
-      const client = clients.find(c => c && c._id === selectedProject?.client?._id);
+      actualItems.expenditures = fetchedExpenditures
+        .filter(item => item.expenditureType === 'Other')
+        .map(item => ({
+          expenditureName: item.expenditureName || 'N/A',
+          description: item.description || 'N/A',
+          amount: parseFloat(item.amount || 0)
+        }));
 
-      // Start with the existing non-item fields from the current formData state
-      const baseFormData = { 
-            ...formData,
-            // Clear items before loading new project data
-            materials: [],
-            manpowers: [],
-            expenditures: [],
+      actualItems.materials = fetchedMaterials;
+
+
+      // 5. Build the new form data by overwriting old project-specific fields
+      setFormData(prevData => {
+
+        // Client Details to be updated
+        const updatedClientDetails = client ? {
+          quotationTo: client._id,
+          quotationToName: client.clientName || '',
+          gstTo: selectedProject?.gst || '', // Use project GST if applicable
+          addressTo: client.address || '',
+          phoneTo: client.phoneNumber || client.phone || '',
+        } : {
+          quotationTo: '',
+          quotationToName: '',
+          gstTo: '',
+          addressTo: '',
+          phoneTo: '',
         };
 
-      // 1. Get Token
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Authentication failed. Please log in.');
-        setLoading(false);
-        return;
-      }
+        const newFormData = {
+          ...prevData,
+          projectId: projectId,
+          ...updatedClientDetails,
+          // Load the newly fetched actual items
+          materials: actualItems.materials,
+          manpowers: actualItems.manpowers,
+          expenditures: actualItems.expenditures,
+        };
 
-      // 2. Fetch ALL Expenditures (Salary & Other)
-      const allExpenditureResponse = await fetch(`${API_BASE_URL}/expenditures?projectId=${projectId}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const fetchedExpenditures = allExpenditureResponse.ok ? await allExpenditureResponse.json() : [];
+        // 6. Recalculate Total
+        newFormData.totalAmount = updateCalculations(newFormData);
 
-      // 3. Fetch Actual Materials 
-      const fetchedMaterials = await fetchActualMaterialExpenditures(projectId, token);
+        return newFormData;
+      });
 
-      // 4. Map Actual Expenses to temporary object
-      const actualItems = {};
-        
-      actualItems.manpowers = fetchedExpenditures
-        .filter(item => item.expenditureType === 'Salary')
-        .map(item => ({
-          manpowerName: item.manpowerName || 'N/A',
-          role: item.description || 'N/A', 
-          amount: parseFloat(item.amount || 0)
-        }));
+    } catch (error) {
+      console.error('Failed to get data for the project:', error);
+      toast.error('Could not load project data.');
+    } finally {
+      setLoading(false);
+    }
+  }, [projects, clients, profile, updateCalculations]);
 
-      actualItems.expenditures = fetchedExpenditures
-        .filter(item => item.expenditureType === 'Other')
-        .map(item => ({
-          expenditureName: item.expenditureName || 'N/A',
-          description: item.description || 'N/A',
-          amount: parseFloat(item.amount || 0)
-        }));
+  const handleItemChange = useCallback((category, index, e) => {
+    // ... (Your handleItemChange code remains here, unchanged)
+    const { name, value, type } = e.target;
+    setFormData(prevData => {
+      const updatedItems = [...(prevData[category] || [])];
 
-      actualItems.materials = fetchedMaterials;
-      // END ACTUAL DATA LOADING LOGIC
+      let finalValue = value;
+      // Convert number inputs to actual numbers or 0
+      if (type === 'number') {
+        finalValue = value === '' ? 0 : value;
+      }
 
-      // 5. Combine all data
-      const combinedData = {
-        ...baseFormData,
-        ...actualItems,
-        projectId: projectId,
-      };
-        
-      // Update client/profile details
-      const newFormData = updateFormWithProjectData(selectedProject, client, combinedData, profile);
-      
-      // 6. CRITICAL: Recalculate Total after loading actual items
-      newFormData.totalAmount = updateCalculations(newFormData);
+      const updatedItem = { ...updatedItems[index], [name]: finalValue };
+      updatedItems[index] = updatedItem;
 
-      setFormData(newFormData);
+      const newData = { ...prevData, [category]: updatedItems };
+      return { ...newData, totalAmount: updateCalculations(newData) };
+    });
+  }, [updateCalculations]);
 
-    } catch (error) {
-      console.error('Failed to get data for the project:', error);
-      toast.error('Could not load project data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [projects, clients, formData, profile, updateFormWithProjectData, updateCalculations]);
+  const handleAddItem = useCallback((category) => {
+    // ... (Your handleAddItem code remains here, unchanged)
+    setFormData(prevData => {
+      let newItem = {};
+      switch (category) {
+        case 'materials':
+          newItem = { materialName: '', quantity: 0, unit: 'Nos', amount: 0, gst: 0 };
+          break;
+        case 'manpowers':
+          newItem = { manpowerName: '', role: '', amount: 0 };
+          break;
+        case 'expenditures':
+          newItem = { expenditureName: '', description: '', amount: 0 };
+          break;
+        default:
+          return prevData;
+      }
+      const updatedItems = [...(prevData[category] || []), newItem];
+      const newData = { ...prevData, [category]: updatedItems };
+      return { ...newData, totalAmount: updateCalculations(newData) };
+    });
+  }, [updateCalculations]);
 
-  const handleItemChange = useCallback((category, index, e) => {
-    // ... (Your handleItemChange code remains here, unchanged)
-        const { name, value, type } = e.target;
-        setFormData(prevData => {
-            const updatedItems = [...(prevData[category] || [])];
+  const handleRemoveItem = useCallback((category, index) => {
+    // ... (Your handleRemoveItem code remains here, unchanged)
+    setFormData(prevData => {
+      const updatedItems = (prevData[category] || []).filter((_, i) => i !== index);
+      const newData = { ...prevData, [category]: updatedItems };
+      return { ...newData, totalAmount: updateCalculations(newData) };
+    });
+  }, [updateCalculations]);
 
-            let finalValue = value;
-            // Convert number inputs to actual numbers or 0
-            if (type === 'number') {
-                finalValue = value === '' ? 0 : value;
-            }
+  const handleShowDeleteModal = () => {
+    if (id) {
+      setShowDeleteModal(true);
+    }
+  };
 
-            const updatedItem = { ...updatedItems[index], [name]: finalValue };
-            updatedItems[index] = updatedItem;
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+  };
 
-            const newData = { ...prevData, [category]: updatedItems };
-            return { ...newData, totalAmount: updateCalculations(newData) };
-        });
-  }, [updateCalculations]);
+  const handleDelete = async () => {
+    // ... (Your handleDelete code remains here, unchanged)
+    setIsSaving(true);
+    handleCloseDeleteModal();
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Authentication failed. Please log in.');
+      navigate('/login');
+      setIsSaving(false);
+      return;
+    }
 
-  const handleAddItem = useCallback((category) => {
-    // ... (Your handleAddItem code remains here, unchanged)
-        setFormData(prevData => {
-            let newItem = {};
-            switch (category) {
-                case 'materials':
-                    newItem = { materialName: '', quantity: 0, unit: 'Nos', amount: 0, gst: 0 };
-                    break;
-                case 'manpowers':
-                    newItem = { manpowerName: '', role: '', amount: 0 };
-                    break;
-                case 'expenditures':
-                    newItem = { expenditureName: '', description: '', amount: 0 };
-                    break;
-                default:
-                    return prevData;
-            }
-            const updatedItems = [...(prevData[category] || []), newItem];
-            const newData = { ...prevData, [category]: updatedItems };
-            return { ...newData, totalAmount: updateCalculations(newData) };
-        });
-  }, [updateCalculations]);
+    try {
+      const response = await fetch(`${API_BASE_URL}/quotations/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
 
-  const handleRemoveItem = useCallback((category, index) => {
-    // ... (Your handleRemoveItem code remains here, unchanged)
-        setFormData(prevData => {
-            const updatedItems = (prevData[category] || []).filter((_, i) => i !== index);
-            const newData = { ...prevData, [category]: updatedItems };
-            return { ...newData, totalAmount: updateCalculations(newData) };
-        });
-  }, [updateCalculations]);
+      if (!response.ok) {
+        throw new Error('Failed to delete quotation.');
+      }
 
-  const handleShowDeleteModal = () => {
-    if (id) {
-      setShowDeleteModal(true);
-    }
-  };
+      toast.success('Quotation successfully deleted.');
+      navigate('/quotations');
+    } catch (error) {
+      console.error('Failed to delete quotation:', error);
+      toast.error(`Failed to delete quotation: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-  const handleCloseDeleteModal = () => {
-    setShowDeleteModal(false);
-  };
+  const handleCancel = () => {
+    navigate(-1);
+  };
 
-  const handleDelete = async () => {
-    // ... (Your handleDelete code remains here, unchanged)
-        setIsSaving(true);
-        handleCloseDeleteModal();
-        const token = localStorage.getItem('token');
-        if (!token) {
-            toast.error('Authentication failed. Please log in.');
-            navigate('/login');
-            setIsSaving(false);
-            return;
-        }
+  /**
+   * Formats the form data for the backend API, specifically combining manpowers and
+   * expenditures back into a single 'expenditures' array with a type field.
+   */
+  const formatDataForBackend = (data) => {
+    // formattedData-வை 'let' ஆக அமைத்து, அதன் நகலை எடுத்துக்கொள்கிறோம்.
+    let formattedData = { ...data };
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/quotations/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
+    // --- ID மற்றும் Profile தகவலைப் பிரித்தெடுத்தல் ---
+    // 'profile' State-இன் உள்ளே உள்ள profile object-ஐப் பிரித்தெடுக்கிறது.
+    const userProfile = profile.profile || profile;
+    const profileId = userProfile._id;
+    const clientId = data.quotationTo;
 
-            if (!response.ok) {
-                throw new Error('Failed to delete quotation.');
-            }
+    // 🎯 CRITICAL FIX: Fallback Logic
+    // companyName, GST, Address போன்றவற்றை formData-இல் இருந்தோ அல்லது profile-இல் இருந்தோ பெறுகிறது.
+    const companyName = data.quotationFrom || userProfile.companyName || '';
+    const gst = data.gstFrom || userProfile.gst || '';
+    const address = data.addressFrom || userProfile.address || '';
+    const contactNumber = data.contactNumberFrom || userProfile.contactNumber || '';
 
-            toast.success('Quotation successfully deleted.');
-            navigate('/quotations');
-        } catch (error) {
-            console.error('Failed to delete quotation:', error);
-            toast.error(`Failed to delete quotation: ${error.message}`);
-        } finally {
-            setIsSaving(false);
-        }
-  };
+    // --- Items-ஐப் புதுப்பித்தல் மற்றும் ஒன்றிணைத்தல் (Expenditures) ---
+    const combinedExpenditures = [
+      ...(formattedData.manpowers || []).map(item => ({
+        expenditureName: item.manpowerName,
+        role: item.role,
+        amount: parseFloat(item.amount) || 0,
+        expenditureType: 'Salary',
+      })),
+      ...(formattedData.expenditures || []).map(item => ({
+        expenditureName: item.expenditureName,
+        description: item.description,
+        amount: parseFloat(item.amount) || 0,
+        expenditureType: 'Other',
+      }))
+    ];
 
-  const handleCancel = () => {
-    navigate(-1);
-  };
+    // Manpowers/Expenditures-ஐ நீக்கி, combinedExpenditures-ஐச் சேர்த்தல்
+    delete formattedData.manpowers;
+    delete formattedData.expenditures;
+    formattedData.expenditures = combinedExpenditures;
 
-  /**
-   * Formats the form data for the backend API, specifically combining manpowers and
-   * expenditures back into a single 'expenditures' array with a type field.
-   */
-  const formatDataForBackend = (data) => {
-    const formattedData = { ...data };
+    // Materials: Number Conversion
+    formattedData.materials = (formattedData.materials || []).map(item => ({
+      ...item,
+      quantity: parseFloat(item.quantity) || 0,
+      amount: parseFloat(item.amount) || 0,
+      gst: parseFloat(item.gst) || 0,
+    }));
 
-    // 🎯 CRITICAL FIX 1: Add profileId (User's ID)
-    const profileId = profile.profile?._id || profile._id; // profile state-ஐப் பயன்படுத்துகிறோம்
+    // Ensure all top-level numbers are correct, especially the totalAmount
+    formattedData.totalAmount = updateCalculations(formattedData);
 
-    // 🎯 CRITICAL FIX 2: Ensure client ID is present
-    // The clientId should already be correctly set in formData.quotationTo from handleProjectChange
-    const clientId = data.quotationTo; 
+    // --- Redundant Top-Level Fields-ஐ நீக்குதல் (மிக முக்கியம்) ---
+    // இந்த Fields-ஐ Nested Objects-ஆக மாற்றியதால், Top-Level-இல் இருந்து நீக்க வேண்டும்.
+    delete formattedData.quotationFrom;
+    delete formattedData.gstFrom;
+    delete formattedData.addressFrom;
+    delete formattedData.contactNumberFrom;
+    delete formattedData.quotationTo;
+    delete formattedData.quotationToName;
+    delete formattedData.gstTo;
+    delete formattedData.addressTo;
+    delete formattedData.contactNumberTo;
 
-    const combinedExpenditures = [
-      ...(formattedData.manpowers || []).map(item => ({
-        expenditureName: item.manpowerName,
-        role: item.role,
-        amount: parseFloat(item.amount) || 0,
-        expenditureType: 'Salary', // Categorize manpowers as 'Salary'
-      })),
-      ...(formattedData.expenditures || []).map(item => ({
-        expenditureName: item.expenditureName,
-        description: item.description,
-        amount: parseFloat(item.amount) || 0,
-        expenditureType: 'Other', // Categorize expenditures as 'Other'
-      }))
-    ];
+    // --- Final Data Structure for Backend ---
+    return {
+      ...formattedData,
 
-    delete formattedData.manpowers;
-    delete formattedData.expenditures;
-    formattedData.expenditures = combinedExpenditures;
-    formattedData.materials = (formattedData.materials || []).map(item => ({
-      ...item,
-      quantity: parseFloat(item.quantity) || 0,
-      amount: parseFloat(item.amount) || 0,
-      gst: parseFloat(item.gst) || 0,
-    }));
+      // 🎯 FIX: Fallback மதிப்புகளைப் பயன்படுத்துதல்
+      quotationFrom: {
+        companyName: companyName, // 👈 இனி இது காலியாக இருக்காது
+        gst: gst,
+        address: address,
+        contactNumber: contactNumber,
+        profileId: profileId
+      },
 
-    // Ensure all top-level numbers are correct, especially the totalAmount
-    formattedData.totalAmount = updateCalculations(formattedData);
+      // quotationTo லாஜிக் (மாறவில்லை)
+      quotationTo: {
+        clientId: clientId,
+        name: data.quotationToName || '',
+        gst: data.gstTo || '',
+        address: data.addressTo || '',
+        contactNumber: data.contactNumberTo || '',
+      },
 
-    return {
-      ...formattedData,
-      // Manually add the required nested fields (Backend expects { clientId: 'id' })
-      quotationFrom: {
-        profileId: profileId
-      },
-      quotationTo: {
-        clientId: clientId
-      },
-      // Ensure date formats are correct for backend
-      quotationDate: new Date(formattedData.quotationDate).toISOString(),
-      dueDate: formattedData.dueDate ? new Date(formattedData.dueDate).toISOString() : undefined,
-      signedDate: formattedData.signedDate ? new Date(formattedData.signedDate).toISOString() : undefined,
-    };
-  };
-  const handleSave = async (e) => {
-    // ... (Your handleSave code remains here, unchanged)
-        e.preventDefault();
-        setIsSaving(true);
+      // Ensure date formats are correct for backend (ISO String)
+      quotationDate: new Date(data.quotationDate).toISOString(),
+      dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined,
+      logo: data.logo || '',
+      signedDate: data.signedDate ? new Date(data.signedDate).toISOString() : undefined,
+      signature: data.signature ? data.signature : undefined,
+    };
+  };
+  // QuotationForm Component-இன் உள்ளே உள்ள handleSave ஃபங்ஷன்:
 
-        if (!formData.projectId) {
-            toast.error('Please select a project before saving.');
-            setIsSaving(false);
-            return;
-        }
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
 
-        const token = localStorage.getItem('token');
-        if (!token) {
-            toast.error('Authentication failed. Please log in.');
-            navigate('/login');
-            setIsSaving(false);
-            return;
-        }
+    if (!formData.projectId) {
+      toast.error('Please select a project before saving.');
+      setIsSaving(false);
+      return;
+    }
 
-        const isEditing = !!id;
-        const method = isEditing ? 'PUT' : 'POST';
-        const url = isEditing ? `${API_BASE_URL}/quotations/${id}` : `${API_BASE_URL}/quotations`;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Authentication failed. Please log in.');
+      navigate('/login');
+      setIsSaving(false);
+      return;
+    }
 
-        const dataToSend = formatDataForBackend(formData);
+    // 🎯 CRITICAL FIX: Edit செய்யப்பட வேண்டிய Quotation ID-ஐக் கண்டறிதல்.
+    // URL-இல் இருந்து ID (id) அல்லது initialData-வில் இருந்து ID (Modal வழியே வந்தால்)
+    let quotationId = id;
+    if (!quotationId && initialData && initialData._id) {
+      quotationId = initialData._id;
+    }
 
-        try {
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(dataToSend),
-            });
+    const isEditing = !!quotationId;
+    const method = isEditing ? 'PUT' : 'POST';
+    // URL-ஐ அமைக்க, இப்போது கண்டறியப்பட்ட quotationId-ஐப் பயன்படுத்துகிறோம்.
+    const url = isEditing ? `${API_BASE_URL}/quotations/${quotationId}` : `${API_BASE_URL}/quotations`;
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to save quotation.');
-            }
+    // Backend-க்கு அனுப்ப வேண்டிய தரவை வடிவமைத்தல் (உங்கள் formatDataForBackend ஃபங்ஷன் மூலமாக)
+    const dataToSend = formatDataForBackend(formData);
 
-            const result = await response.json();
-            toast.success(`Quotation successfully ${isEditing ? 'updated' : 'saved'}.`);
-            if (onSubmit) {
-                onSubmit(result);
-            } else {
-                // Navigate to the edit view of the newly created/updated quotation
-                navigate(`/quotations/edit/${result._id || id}`, { replace: true });
-            }
-        } catch (error) {
-            console.error('Failed to save quotation:', error);
-            toast.error(`Failed to save quotation: ${error.message}`);
-        } finally {
-            setIsSaving(false);
-        }
-  };
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(dataToSend),
+      });
 
-  return (
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save quotation.');
+      }
+
+      const result = await response.json();
+      toast.success(`Quotation successfully ${isEditing ? 'updated' : 'saved'}.`);
+
+      // QuotationList-இல் உள்ள Modal-ஐ மூடி, பட்டியலைப் புதுப்பிக்க (handleFormClose)
+      if (onSubmit) {
+        onSubmit(result);
+      } else {
+        // URL வழியே வந்திருந்தால், புதுப்பிக்கப்பட்ட Quotation-க்கு navigate செய்க.
+        navigate(`/quotations/edit/${result._id || quotationId}`, { replace: true });
+      }
+    } catch (error) {
+      console.error('Failed to save quotation:', error);
+      toast.error(`Failed to save quotation: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded-3xl shadow-2xl font-sans text-gray-800 my-8 border-t-8 border-blue-600">
       <Toaster position="top-center" />
       <h3 className="text-3xl font-extrabold text-gray-900 mb-6 border-b-4 border-gray-200 pb-4">
@@ -731,6 +824,18 @@ const QuotationForm = ({ formTitle, onSubmit, initialData, submitButtonText }) =
                 className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus-ring-blue-500 transition-shadow duration-200"
               />
             </div>
+            {/* <div className='flex flex-col'>
+              <label htmlFor='logo' className='mb-1 text-sm font-semibold text-gray-700'>Logo URL</label>
+              <input
+                type='file'
+                id='logo'
+                name='logo'
+                value={formData.logo}
+                onChange={handleChange}
+                className='px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200'
+                placeholder='Enter logo URL'
+              />
+            </div> */}
             <div className="flex flex-col md:col-span-2">
               <label htmlFor="quotationNumber" className="mb-1 text-sm font-semibold text-gray-700">Quotation No</label>
               <input
@@ -759,7 +864,7 @@ const QuotationForm = ({ formTitle, onSubmit, initialData, submitButtonText }) =
                 <>
                   <div className="flex flex-col">
                     <label className="mb-1 text-sm font-medium text-gray-700">Company Name</label>
-                    <input type="text" value={formData.quotationFrom} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
+                    <input type="text" name='quotationFrom' value={formData.quotationFrom} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
                   </div>
                   <div className="flex flex-col">
                     <label className="mb-1 text-sm font-medium text-gray-700">GST No</label>
@@ -850,6 +955,17 @@ const QuotationForm = ({ formTitle, onSubmit, initialData, submitButtonText }) =
                 className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
               />
             </div>
+            {/* <div className='flex flex-col'>
+              <label htmlFor='signature' className='mb-1 text-sm font-semibold text-gray-700'>Signature URL</label>
+              <input
+                type='file'
+                id='signature'
+                name='signature'
+                value={formData.signature}
+                onChange={handleChange}
+                className='px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200'
+              />
+            </div> */}
           </div>
 
           {/* Total Amount & Buttons */}
