@@ -4,7 +4,7 @@ import ReceiptForm from './ReceiptForm';
 import { Edit, PlusCircle, Printer, Trash2, FileText, Download, Search, Filter, IndianRupee, Calendar, Hash, MoreVertical, Eye } from 'lucide-react';
 import PrintableReceipt from './PrintableReceipt';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const Receipt = () => {
     const [receipts, setReceipts] = useState([]);

@@ -13,14 +13,14 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
     const [selectedFile, setSelectedFile] = useState(null);
 
     const validationSchema = Yup.object({
-        clientName: Yup.string().required('கிளையன்ட் பெயர் தேவை'),
+        clientName: Yup.string().required('Client name is required'),
         phoneNumber: Yup.string()
-            .matches(/^[0-9]+$/, 'தொலைபேசி எண்ணில் எண்கள் மட்டுமே இருக்க வேண்டும்')
-            .min(10, 'தொலைபேசி எண் குறைந்தது 10 இலக்கங்கள் இருக்க வேண்டும்')
-            .max(15, 'தொலைபேசி எண் அதிகபட்சம் 15 இலக்கங்கள் இருக்க வேண்டும்')
-            .required('தொலைபேசி எண் தேவை'),
-        gstNo : Yup.string().max(16, 'கிஸ்ட் எண் அதிகபட்சம் 15 இலக்கங்கள் இருக்க வேண்டும்'),
-        email: Yup.string().email('தகுந்த மின்னஞ்சல் வடிவம் இல்லை').required('மின்னஞ்சல் தேவை'),
+            .matches(/^[0-9]+$/, 'Phone number should contain only digits')
+            .min(10, 'Phone number should be at least 10 digits')
+            .max(15, 'Phone number should not exceed 15 digits')
+            .required('Phone number is required'),
+        gstNo : Yup.string().max(16, 'GST number should not exceed 16 characters'),
+        email: Yup.string().email('Invalid email').required('Email is required'),
         address: Yup.string(),
         description: Yup.string(),
     });
@@ -66,20 +66,20 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: 'ஏதோ தவறு நடந்துவிட்டது.' }));
-                    throw new Error(errorData.message || 'கிளையன்ட் விவரங்களைச் சேமிக்க முடியவில்லை.');
+                    const errorData = await response.json().catch(() => ({ message: 'Client details could not be saved.' }));
+                    throw new Error(errorData.message || 'Client details could not be saved.');
                 }
 
-                setSuccessMessage(isEditing ? "கிளையன்ட் விவரங்கள் வெற்றிகரமாக புதுப்பிக்கப்பட்டன!" : "கிளையன்ட் வெற்றிகரமாக சேர்க்கப்பட்டார்!");
+                setSuccessMessage(isEditing ? "Client details updated successfully!" : "Client added successfully!");
                 setTimeout(onSaveSuccess, 1500);
 
             } catch (err) {
-                console.error("API பிழை:", err);
-                if (err.message.includes('அங்கீகார டோக்கன்')) {
+                console.error("API Error:", err);
+                if (err.message.includes('Token not found. Please log in again.')) {
                     // authenticatedFetch பிழையை கையாளுதல்
                     setServerError(err.message);
                 } else {
-                    setServerError(err.message || "கிளையன்ட் விவரங்களைச் சேமிக்க முடியவில்லை. பிணையத்தை சரிபார்க்கவும்.");
+                    setServerError(err.message || "Client details could not be saved.");
                 }
             } finally {
                 setLoading(false);
@@ -112,13 +112,13 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
     return (
         <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg mx-auto">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">
-                {client ? 'கிளையன்ட் விவரங்களைத் திருத்து' : 'புதிய கிளையன்ட்டைச் சேர்'}
+                {client ? 'Client Details Correction' : 'Add New Client'}
             </h2>
             <form onSubmit={formik.handleSubmit}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     {/* Client Name Field */}
                     <div>
-                        <label htmlFor="clientName" className="block text-sm font-medium text-gray-700 mb-1">கிளையன்ட் பெயர்<span className="text-red-500">*</span></label>
+                        <label htmlFor="clientName" className="block text-sm font-medium text-gray-700 mb-1">Client Name<span className="text-red-500">*</span></label>
                         <input
                             type="text"
                             id="clientName"
@@ -136,7 +136,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
 
                     {/* Phone Number Field */}
                     <div>
-                        <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">தொலைபேசி எண்<span className="text-red-500">*</span></label>
+                        <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">Phone Number<span className="text-red-500">*</span></label>
                         <input
                             type="text"
                             id="phoneNumber"
@@ -172,7 +172,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
 
                     {/* Email Field */}
                     <div className="md:col-span-2">
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">மின்னஞ்சல்<span className="text-red-500">*</span></label>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email<span className="text-red-500">*</span></label>
                         <input
                             type="email"
                             id="email"
@@ -190,7 +190,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
 
                     {/* Photo File Upload Field */}
                     <div className="md:col-span-2">
-                        <label htmlFor="photo" className="block text-sm font-medium text-gray-700 mb-1">புகைப்படம்</label>
+                        <label htmlFor="photo" className="block text-sm font-medium text-gray-700 mb-1">Photo</label>
                         <input
                             type="file"
                             id="photo"
@@ -199,13 +199,13 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
                             onChange={handleFileChange}
                         />
                         {selectedFile && (
-                            <p className="mt-2 text-sm text-gray-500">தேர்ந்தெடுக்கப்பட்ட கோப்பு: {selectedFile.name}</p>
+                            <p className="mt-2 text-sm text-gray-500">Selected File: {selectedFile.name}</p>
                         )}
                     </div>
 
                     {/* Address Field */}
                     <div className="md:col-span-2">
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">முகவரி</label>
+                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Address </label>
                         <textarea
                             id="address"
                             name="address"
@@ -220,7 +220,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
 
                     {/* Description Field */}
                     <div className="md:col-span-2">
-                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">விளக்கம்</label>
+                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                         <textarea
                             id="description"
                             name="description"
@@ -238,7 +238,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
                 {loading && (
                     <div className="flex items-center justify-center my-4 text-indigo-600 space-x-2">
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>சேமிக்கப்படுகிறது...</span>
+                        <span>Loading...</span>
                     </div>
                 )}
                 {serverError && (
@@ -261,14 +261,14 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
                         className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
                         disabled={loading}
                     >
-                        ரத்துசெய்
+                        Cancel
                     </button>
                     <button
                         type="submit"
                         className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         disabled={loading}
                     >
-                        {client ? 'புதுப்பி' : 'சேமி'}
+                        {client ? 'Update' : 'Save'}
                     </button>
                 </div>
             </form>

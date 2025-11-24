@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // The 'alert' function is being replaced by a custom message box for better UX.
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 // The allowed enum values from your MaterialSchema are:
 // ['Available', 'Low Stock', 'Out of Stock']

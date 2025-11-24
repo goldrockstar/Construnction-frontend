@@ -6,7 +6,7 @@ import MessageModal from '../model/MessageModal';
 import ProjectMaterialMappingForm from './ProjectMaterialMappingForm';
 import { Edit, Trash2, PlusCircle, ArrowLeft, Package, Building2, Users, DollarSign, Scale, TrendingUp, Search } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const ProjectMaterialMapping = () => {
     const { projectId } = useParams();

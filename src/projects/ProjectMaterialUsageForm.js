@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Edit, PlusCircle, ArrowLeft } from 'lucide-react';
 import PropTypes from 'prop-types';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const ProjectMaterialUsageForm = ({ usage, onClose, projectId, onUpdate }) => {
     const [formData, setFormData] = useState({
@@ -32,7 +32,7 @@ const ProjectMaterialUsageForm = ({ usage, onClose, projectId, onUpdate }) => {
 
             // Screenshot 117-ல், `materialsusage` என்று உள்ளது.
             // உங்கள் API எண்ட்பாயிண்ட் `/api/materials` ஆக இருந்தால், அதை சரியாகப் பயன்படுத்த வேண்டும்.
-            const response = await fetch('http://localhost:5000/api/materials', {
+            const response = await fetch('https://construction-backend-uwd8.onrender.com/api/materials', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

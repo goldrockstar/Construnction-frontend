@@ -7,7 +7,7 @@ import { Edit, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
 import { formatInr } from '../utils/formatter';
 
 // API_BASE_URL-ஐ உங்கள் உண்மையான backend URL-க்கு மாற்றவும்
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const SalaryConfig = () => {
     const { projectId } = useParams();

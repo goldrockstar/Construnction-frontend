@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCcw, X, Save, IndianRupee } from 'lucide-react';
 
 // API அடிப்படை URL
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 /**
  * ExpenditureForm component

@@ -6,7 +6,7 @@ import MessageModal from '../model/MessageModal';
 import ProjectAmountTransactionForm from './ProjectAmountTransactionForm'; 
 import { Edit, Trash2, PlusCircle, ArrowLeft, DollarSign, TrendingUp, TrendingDown, Building2, Calendar, FileText } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const ProjectAmountTransaction = () => {
     const { projectId } = useParams();

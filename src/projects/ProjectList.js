@@ -7,7 +7,7 @@ import { Edit, Trash2, PlusCircle, Building2, Users, DollarSign, Calendar, MoreV
 import { AnimatePresence } from 'framer-motion';
 import Dropdown from '../model/Dropdown';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const ProjectList = () => {
     const [projects, setProjects] = useState([]);

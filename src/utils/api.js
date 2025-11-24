@@ -2,7 +2,7 @@
 // இது அங்கீகார டோக்கனுடன் API அழைப்புகளைச் செய்வதற்கான ஒரு helper function.
 // இது குறியீட்டை மீண்டும் பயன்படுத்தக்கூடியதாகவும், பராமரிக்க எளிதாகவும் மாற்ற உதவுகிறது.
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const authenticatedFetch = async (endpoint, options = {}) => {
     // localStorage-ல் இருந்து அங்கீகார டோக்கனைப் பெறவும்.

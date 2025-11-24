@@ -5,7 +5,7 @@ import ConfirmationModal from '../model/ConfirmationModal';
 import  { Edit, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const PersonalExpenditure = () => {
     const [personalExpenditures, setPersonalExpenditures] = useState([]);

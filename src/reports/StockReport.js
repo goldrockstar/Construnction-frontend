@@ -44,8 +44,8 @@ const StockReport = () => {
   useEffect(() => {
     const loadDropdowns = async () => {
       try {
-        const projects = await fetchData("http://localhost:5000/api/projects");
-        const materials = await fetchData("http://localhost:5000/api/materials");
+        const projects = await fetchData("https://construction-backend-uwd8.onrender.com/api/projects");
+        const materials = await fetchData("https://construction-backend-uwd8.onrender.com/api/materials");
         console.log("MATERIALS API RESULT:", materials);
         setProjectsList(projects);
         setMaterialsList(materials);
@@ -70,7 +70,7 @@ const StockReport = () => {
       }).toString();
 
       const fetchedUsages = await fetchData(
-        `http://localhost:5000/api/projectMaterialMappings?${mappingQueryParams}`
+        `https://construction-backend-uwd8.onrender.com/api/projectMaterialMappings?${mappingQueryParams}`
       );
 
       const aggregatedData = {};

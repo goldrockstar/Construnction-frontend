@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { XCircle, Loader2 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) => {
     // Helper function to format date for the input field

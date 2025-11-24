@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, DollarSign, Calendar, Briefcase, ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp, Download, Filter, PieChart, BarChart3, Target, Award, AlertCircle } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const safeParseFloat = (value) => {
     const parsed = parseFloat(value);

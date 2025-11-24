@@ -4,7 +4,7 @@ import ExpenditureForm from './ExpenditureForm';
 import { Trash2, Edit, ArrowLeft, Plus, Users, Calendar, DollarSign, Filter, Download, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const Expenditure = () => {
     const [expenditures, setExpenditures] = useState([]);

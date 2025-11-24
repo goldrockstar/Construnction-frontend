@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import AdminUserForm from './AdminUserForm'; 
 import Modal from '../model/Modal';
 
-const API_BASE_URL = 'http://localhost:5000/api'; 
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api'; 
 
 const AdminUserList = () => {
     const [users, setUsers] = useState([]);

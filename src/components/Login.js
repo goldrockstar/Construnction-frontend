@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, User, Lock, Building2 } from 'lucide-react';
 import MessageModal from '../model/MessageModal';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const Login = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');

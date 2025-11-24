@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Search, Briefcase, Calendar, FileText, IndianRupee, TrendingUp, TrendingDown, Download, Filter, PieChart } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const SalaryReport = () => {
     // State variables

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 // TransactionForm handles both Income and manual Expense (like Transport) entries.
 const TransactionForm = ({ transaction, onClose, projectId, type }) => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { FolderOpen, CheckCircle, PiggyBank, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp, Building2, DollarSign, FileText, User, Calendar, BarChart3, Eye, Download, MoreVertical, Target, Award, Clock, Users, Package, ShoppingCart, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 // Helper function to format date
 const formatDate = (dateString) => {

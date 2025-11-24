@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, PlusCircle, Save, Undo2, XCircle } from 'lucide-react';
 import { formatDateToInput, formatInr } from '../utils/formatter';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const SalaryConfigForm = ({ projectConfigs, roleOptions, onSaveSuccess, onClose, projectId, handleDelete }) => {
     const [formRows, setFormRows] = useState([]);

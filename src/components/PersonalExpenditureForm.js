@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const PersonalExpenditureForm = ({ expenditure, onClose, onSaveSuccess }) => {
    const [formData, setFormData] = useState({

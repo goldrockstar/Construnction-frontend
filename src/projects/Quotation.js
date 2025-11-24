@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import QuotationForm from '../projects/QuotationForm';
 import QuotationModel from '../model/QuotationModel';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const QuotationList = () => {
     const navigate = useNavigate();

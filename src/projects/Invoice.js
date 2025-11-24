@@ -7,7 +7,7 @@ import QuotationModel from '../model/QuotationModel';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const InvoiceList = () => {
     const navigate = useNavigate();

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, Ban, Trash2, User, Building, Plus, RefreshCw, X, FileText, Calculator, IndianRupee, Calendar, Hash, Package, Percent } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const InvoiceForm = ({ initialData, onClose }) => {
     const { id } = useParams();

@@ -34,7 +34,7 @@ const Profile = () => {
         const fetchProfile = async () => {
             setLoading(true);
             try {
-                const response = await fetch(`http://localhost:5000/api/users/profile`, {
+                const response = await fetch(`https://construction-backend-uwd8.onrender.com/api/users/profile`, {
                     headers: getAuthHeaders()
                 });
 
@@ -82,7 +82,7 @@ const Profile = () => {
 
         try {
             const method = profileData.id ? 'PUT' : 'POST';
-            const url = profileData.id ? `http://localhost:5000/api/users/profile` : `http://localhost:5000/api/users`;
+            const url = profileData.id ? `https://construction-backend-uwd8.onrender.com/api/users/profile` : `https://construction-backend-uwd8.onrender.com/api/users`;
 
             const response = await fetch(url, {
                 method: method,
@@ -110,7 +110,7 @@ const Profile = () => {
     const handleDelete = async () => {
         setDeleting(true);
         try {
-            const response = await fetch(`http://localhost:5000/api/users/${profileData.id}`, {
+            const response = await fetch(`https://construction-backend-uwd8.onrender.com/api/users/${profileData.id}`, {
                 method: 'DELETE',
                 headers: getAuthHeaders(),
             });

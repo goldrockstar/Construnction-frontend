@@ -7,7 +7,7 @@ import MessageModal from '../model/MessageModal';
 import { Edit, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
 
 // Use a consistent API base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const ProjectMaterialUsage = () => {
     const { projectId } = useParams();
