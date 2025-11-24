@@ -1,11 +1,10 @@
-// src/components/ProjectAmountTransaction.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Modal from '../model/Modal';
 import ConfirmModal from '../model/ConfirmModal';
 import MessageModal from '../model/MessageModal';
-import ProjectAmountTransactionForm from './ProjectAmountTransactionForm';
-import { Edit, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
+import ProjectAmountTransactionForm from './ProjectAmountTransactionForm'; 
+import { Edit, Trash2, PlusCircle, ArrowLeft, DollarSign, TrendingUp, TrendingDown, Building2, Calendar, FileText } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -18,18 +17,20 @@ const ProjectAmountTransaction = () => {
     const [error, setError] = useState(null);
     const [showFormModal, setShowFormModal] = useState(false);
     const [currentTransaction, setCurrentTransaction] = useState(null);
+    const [formType, setFormType] = useState('Income'); 
+    
     const [projectData, setProjectData] = useState({
         clientName: 'Loading...',
         projectName: 'Loading...',
-        totalBudget: 0,
-        givenAmount: 0,
-        remainingAmount: 0
+        totalIncome: 0,
+        totalExpense: 0,
+        netProfitLoss: 0
     });
+
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [transactionIdToDelete, setTransactionIdToDelete] = useState(null);
     const [message, setMessage] = useState(null);
 
-    // This function now fetches both the transaction list AND the summary in one API call.
     const fetchTransactionsAndSummary = useCallback(async () => {
         if (!projectId) {
             setError("Project ID is missing in the URL. Cannot fetch transactions.");
@@ -47,7 +48,7 @@ const ProjectAmountTransaction = () => {
                 navigate('/login');
                 return;
             }
-            // Major change: Call the summary API endpoint which provides all data needed.
+            
             const response = await fetch(`${API_BASE_URL}/transactions/summary/${projectId}`, {
                 method: 'GET',
                 headers: {
@@ -55,6 +56,7 @@ const ProjectAmountTransaction = () => {
                     'Authorization': `Bearer ${token}`
                 },
             });
+            
             if (!response.ok) {
                 if (response.status === 401) {
                     localStorage.removeItem('token');
@@ -65,19 +67,17 @@ const ProjectAmountTransaction = () => {
                 const errorData = await response.json();
                 throw new Error(errorData.message || `Failed to fetch transactions: ${response.statusText}`);
             }
-            const data = await response.json();
 
-            // Update transactions list with data.data
-            setTransactions(data.data || []);
+            const data = await response.json();
+            setTransactions(data.allTransactions || []);
             
-            // Update project summary with data.summary
             if (data.summary) {
                 setProjectData({
                     projectName: data.summary.projectName || 'N/A',
                     clientName: data.summary.clientName || 'N/A',
-                    totalBudget: data.summary.totalBudget || 0,
-                    givenAmount: data.summary.givenAmount || 0,
-                    remainingAmount: data.summary.remainingAmount || 0
+                    totalIncome: data.summary.totalIncome || 0, 
+                    totalExpense: data.summary.totalExpense || 0, 
+                    netProfitLoss: data.summary.netProfitLoss || 0 
                 });
             }
         } catch (err) {
@@ -88,7 +88,6 @@ const ProjectAmountTransaction = () => {
         }
     }, [projectId, navigate]);
     
-    // Call the new combined function on initial load and when projectId changes
     useEffect(() => {
         if (projectId) {
             fetchTransactionsAndSummary();
@@ -118,7 +117,6 @@ const ProjectAmountTransaction = () => {
             }
 
             setMessage("Transaction deleted successfully!");
-            // Re-fetch transactions to update summary values after deletion
             fetchTransactionsAndSummary();
         } catch (err) {
             console.error("Error deleting transaction:", err);
@@ -130,20 +128,41 @@ const ProjectAmountTransaction = () => {
     };
 
     const handleEdit = (transaction) => {
-        setCurrentTransaction(transaction);
+        if (transaction.source !== 'General') {
+            setMessage("Only General Income/Expense transactions can be edited directly here. For Material or Manpower changes, please update them via their dedicated sections.");
+            return;
+        }
+
+        setFormType(transaction.type || 'Income'); 
+        setCurrentTransaction({
+            _id: transaction.id,
+            amount: transaction.amount,
+            transactionDate: transaction.date,
+            description: transaction.description,
+            type: transaction.type,
+        });
         setShowFormModal(true);
     };
 
-    const handleAdd = () => {
+    const handleAddIncome = () => {
+        setFormType('Income');
+        setCurrentTransaction(null);
+        setShowFormModal(true);
+    };
+    
+    const handleAddExpense = () => {
+        setFormType('Expense');
         setCurrentTransaction(null);
         setShowFormModal(true);
     };
 
-    const handleFormClose = () => {
+    const handleFormClose = (refresh = false) => {
         setShowFormModal(false);
         setCurrentTransaction(null);
-        // Re-fetch transactions to update summary values after form submission
-        fetchTransactionsAndSummary();
+        setFormType('Income');
+        if (refresh) {
+            fetchTransactionsAndSummary();
+        }
     };
 
     const handleBackClick = () => {
@@ -151,144 +170,284 @@ const ProjectAmountTransaction = () => {
     };
 
     if (loading) {
-        return <div className="p-4 text-center text-gray-700">Loading transactions...</div>;
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+        );
     }
 
     if (error) {
-        return <div className="p-4 text-center text-red-700">{error}</div>;
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+                <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg shadow-lg max-w-md w-full">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">!</span>
+                            </div>
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-red-800 font-semibold">Error</h3>
+                            <p className="text-red-600 text-sm mt-1">{error}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="p-6 bg-white rounded-lg shadow-md">
-            <div className="flex items-center justify-between mb-4">
-                <button
-                    onClick={handleBackClick}
-                    className="flex items-center px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                >
-                    <ArrowLeft size={20} className="mr-2" /> Back
-                </button>
-                <h2 className="text-2xl font-semibold text-gray-800">
-                    Transactions: {projectData.projectName || 'N/A'}
-                </h2>
-                <div></div>
-            </div>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 overflow-hidden">
+            <div className="max-w-full mx-auto h-full flex flex-col">
+                {/* Header Section */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                    <div className="flex items-center space-x-4">
+                        <button
+                            onClick={handleBackClick}
+                            className="flex items-center px-4 py-3 bg-white text-indigo-700 rounded-xl hover:bg-indigo-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md border border-indigo-100"
+                        >
+                            <ArrowLeft size={20} className="mr-2" /> Back
+                        </button>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+                                <DollarSign className="h-7 w-7 mr-3 text-indigo-600" />
+                                Income & Expense Transactions
+                            </h1>
+                            <p className="text-gray-600 text-sm mt-1">Manage income and expenses for {projectData.projectName}</p>
+                        </div>
+                    </div>
+                </div>
 
-            {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                    <strong className="font-bold">Error!</strong>
-                    <span className="block sm:inline"> {error}</span>
-                    <span className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError(null)}>
-                        <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
-                    </span>
-                </div>
-            )}
-            
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-gray-100 p-4 rounded-md shadow-inner">
-                <div className="flex items-center space-x-2">
-                    <span className="text-gray-700">Client:</span>
-                    <span className="font-semibold text-gray-900">{projectData.clientName}</span>
-                </div>
-                <div className="flex items-center space-x-2 mt-2 md:mt-0">
-                    <span className="text-gray-700">Total Budget:</span>
-                    <span className="font-semibold text-gray-900">
-                        {projectData.totalBudget?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-                    </span>
-                </div>
-                <div className="flex items-center space-x-2 mt-2 md:mt-0">
-                    <span className="text-gray-700">Amount Received:</span>
-                    <span className="font-semibold text-green-600">
-                        {projectData.givenAmount?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-                    </span>
-                </div>
-                <div className="flex items-center space-x-2 mt-2 md:mt-0">
-                    <span className="text-gray-700">Remaining Amount:</span>
-                    <span className="font-semibold text-red-600">
-                        {projectData.remainingAmount?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-                    </span>
-                </div>
-            </div>
+                {/* Financial Summary Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+                    {/* Project Info Card */}
+                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-100">
+                        <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-indigo-100 rounded-lg">
+                                <Building2 className="h-5 w-5 text-indigo-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-700">Project</h3>
+                                <p className="text-sm font-bold text-gray-900 truncate">{projectData.projectName}</p>
+                                <p className="text-xs text-gray-600">Client: {projectData.clientName}</p>
+                            </div>
+                        </div>
+                    </div>
 
-            <button
-                onClick={handleAdd}
-                className="mb-6 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200 flex items-center"
-            >
-                <PlusCircle size={20} className="mr-2" /> Add New Transaction
-            </button>
+                    {/* Total Income Card */}
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-4 shadow-lg text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-green-100 text-xs font-medium">Total Income</p>
+                                <p className="text-xl font-bold mt-1">
+                                    ₹{projectData.totalIncome?.toLocaleString('en-IN') || '0'}
+                                </p>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-lg">
+                                <TrendingUp size={18} />
+                            </div>
+                        </div>
+                    </div>
 
-            {transactions.length === 0 ? (
-                <p className="text-gray-600 italic">No transactions found for this project. Click "Add New Transaction" to add one.</p>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
-                        <thead>
-                            <tr className="bg-gray-100 border-b border-gray-200">
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {transactions.map((transaction) => (
-                                <tr key={transaction._id} className="border-b border-gray-200 last:border-b-0">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {new Date(transaction.transactionDate).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                        {transaction.amount?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) || 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 capitalize">
-                                        {transaction.description || 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-medium">
-                                        <div className="flex items-center space-x-2">
-                                            <button
-                                                onClick={() => handleEdit(transaction)}
-                                                className="text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-100 transition duration-200"
-                                                title="Edit Transaction"
-                                            >
-                                                <Edit size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(transaction._id)}
-                                                className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100 transition duration-200"
-                                                title="Delete Transaction"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    {/* Total Expense Card */}
+                    <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-xl p-4 shadow-lg text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-orange-100 text-xs font-medium">Total Expense</p>
+                                <p className="text-xl font-bold mt-1">
+                                    ₹{projectData.totalExpense?.toLocaleString('en-IN') || '0'}
+                                </p>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-lg">
+                                <TrendingDown size={18} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Net Profit/Loss Card */}
+                    <div className={`rounded-xl p-4 shadow-lg text-white ${
+                        projectData.netProfitLoss >= 0 
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-600' 
+                            : 'bg-gradient-to-r from-red-500 to-pink-600'
+                    }`}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-blue-100 text-xs font-medium">
+                                    {projectData.netProfitLoss >= 0 ? 'Net Profit' : 'Net Loss'}
+                                </p>
+                                <p className="text-xl font-bold mt-1">
+                                    ₹{Math.abs(projectData.netProfitLoss)?.toLocaleString('en-IN') || '0'}
+                                </p>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-lg">
+                                <DollarSign size={18} />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            )}
 
-            {showFormModal && (
-                <Modal onClose={handleFormClose}>
-                    <ProjectAmountTransactionForm
-                        transaction={currentTransaction}
-                        projectId={projectId}
-                        onClose={handleFormClose}
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                    <button
+                        onClick={handleAddIncome}
+                        className="flex-1 flex items-center justify-center px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl text-sm"
+                    >
+                        <PlusCircle size={18} className="mr-2" />
+                        Add Income
+                    </button>
+                    <button
+                        onClick={handleAddExpense}
+                        className="flex-1 flex items-center justify-center px-4 py-3 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl text-sm"
+                    >
+                        <PlusCircle size={18} className="mr-2" />
+                        Add Expense
+                    </button>
+                </div>
+
+                {/* Transactions Section */}
+                <div className="flex-1 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden flex flex-col">
+                    <div className="p-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <FileText className="h-5 w-5 mr-2 text-indigo-600" />
+                            Transaction History
+                        </h3>
+                    </div>
+                    
+                    {transactions.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                            <FileText className="h-12 w-12 text-gray-300 mb-3" />
+                            <h3 className="text-lg font-semibold text-gray-600 mb-2">No Transactions Found</h3>
+                            <p className="text-gray-500 text-sm mb-4">Start by adding your first income or expense transaction</p>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <button
+                                    onClick={handleAddIncome}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-all duration-200 text-sm"
+                                >
+                                    <PlusCircle size={16} className="inline mr-2" />
+                                    Add Income
+                                </button>
+                                <button
+                                    onClick={handleAddExpense}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 text-sm"
+                                >
+                                    <PlusCircle size={16} className="inline mr-2" />
+                                    Add Expense
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gradient-to-r from-gray-50 to-indigo-50 sticky top-0">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Date</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Source</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Type</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Description</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Amount</th>
+                                        <th className="px-4 py-3 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-100">
+                                    {transactions.map((transaction, index) => (
+                                        <tr key={transaction.id || index} className="hover:bg-gray-50 transition-all duration-150">
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <div className="flex items-center text-xs text-gray-600">
+                                                    <Calendar size={12} className="mr-2 text-gray-400" />
+                                                    {new Date(transaction.date).toLocaleDateString()}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2 py-1 rounded">
+                                                    {transaction.source || 'General'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                                    transaction.type === 'Income' 
+                                                        ? 'bg-green-100 text-green-800' 
+                                                        : 'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {transaction.type === 'Income' ? '💰 Income' : '💸 Expense'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="text-sm text-gray-900 max-w-xs truncate">
+                                                    {transaction.description || 'N/A'}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <div className={`text-sm font-bold ${
+                                                    transaction.type === 'Income' 
+                                                        ? 'text-green-700 bg-green-50' 
+                                                        : 'text-red-700 bg-red-50'
+                                                } px-2 py-1 rounded`}>
+                                                    {transaction.type === 'Income' ? '+' : '-'} 
+                                                    ₹{transaction.amount?.toLocaleString('en-IN') || '0'}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <div className="flex items-center justify-center space-x-1">
+                                                    {transaction.source === 'General' ? (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleEdit(transaction)}
+                                                                className="p-1.5 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-100 rounded-lg transition-all duration-200"
+                                                                title="Edit"
+                                                            >
+                                                                <Edit size={14} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(transaction.id)}
+                                                                className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-lg transition-all duration-200"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-gray-400 text-xs italic">
+                                                            Read-only
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* Modals */}
+                {showFormModal && (
+                    <Modal onClose={() => handleFormClose(false)}>
+                        <ProjectAmountTransactionForm
+                            transaction={currentTransaction}
+                            projectId={projectId}
+                            type={formType}
+                            onClose={handleFormClose}
+                        />
+                    </Modal>
+                )}
+
+                {showConfirmModal && (
+                    <ConfirmModal
+                        message="Are you sure you want to delete this transaction?"
+                        onConfirm={confirmDelete}
+                        onCancel={() => setShowConfirmModal(false)}
                     />
-                </Modal>
-            )}
+                )}
 
-            {showConfirmModal && (
-                <ConfirmModal
-                    message="Are you sure you want to delete this transaction?"
-                    onConfirm={confirmDelete}
-                    onCancel={() => setShowConfirmModal(false)}
-                />
-            )}
-
-            {message && (
-                <MessageModal
-                    message={message}
-                    onClose={() => setMessage(null)}
-                />
-            )}
+                {message && (
+                    <MessageModal
+                        message={message}
+                        onClose={() => setMessage(null)}
+                    />
+                )}
+            </div>
         </div>
     );
 };

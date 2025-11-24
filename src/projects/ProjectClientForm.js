@@ -19,6 +19,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
             .min(10, 'தொலைபேசி எண் குறைந்தது 10 இலக்கங்கள் இருக்க வேண்டும்')
             .max(15, 'தொலைபேசி எண் அதிகபட்சம் 15 இலக்கங்கள் இருக்க வேண்டும்')
             .required('தொலைபேசி எண் தேவை'),
+        gstNo : Yup.string().max(16, 'கிஸ்ட் எண் அதிகபட்சம் 15 இலக்கங்கள் இருக்க வேண்டும்'),
         email: Yup.string().email('தகுந்த மின்னஞ்சல் வடிவம் இல்லை').required('மின்னஞ்சல் தேவை'),
         address: Yup.string(),
         description: Yup.string(),
@@ -28,6 +29,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
         initialValues: {
             clientName: client?.clientName || '',
             phoneNumber: client?.phoneNumber || '',
+            gstNo: client?.gstNo || '',
             email: client?.email || '',
             address: client?.address || '',
             description: client?.description || '',
@@ -41,6 +43,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
             const formData = new FormData();
             formData.append('clientName', values.clientName);
             formData.append('phoneNumber', values.phoneNumber);
+            formData.append('gstNo', values.gstNo);
             formData.append('email', values.email);
             formData.append('address', values.address);
             formData.append('description', values.description);
@@ -94,6 +97,7 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
             formik.setValues({
                 clientName: client.clientName || '',
                 phoneNumber: client.phoneNumber || '',
+                gstNo: client.gstNo || '',
                 email: client.email || '',
                 address: client.address || '',
                 description: client.description || '',
@@ -145,6 +149,24 @@ const ProjectClientForm = ({ client, projectId, onClose, onSaveSuccess }) => {
                         />
                         {formik.touched.phoneNumber && formik.errors.phoneNumber && (
                             <p className="mt-1 text-sm text-red-500">{formik.errors.phoneNumber}</p>
+                        )}
+                    </div>
+
+                    {/* Email Field */}
+                    <div className="md:col-span-2">
+                        <label htmlFor="gstNo" className="block text-sm font-medium text-gray-700 mb-1">GST NO<span className="text-red-500">*</span></label>
+                        <input
+                            type="gstNo"
+                            id="gstNo"
+                            name="gstNo"
+                            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${formik.touched.email && formik.errors.email ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            value={formik.values.gstNo}
+                            placeholder="Gst No"
+                        />
+                        {formik.touched.gstNo && formik.errors.gstNo && (
+                            <p className="mt-1 text-sm text-red-500">{formik.errors.gstNo}</p>
                         )}
                     </div>
 

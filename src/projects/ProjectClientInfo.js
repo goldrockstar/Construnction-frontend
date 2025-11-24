@@ -1,7 +1,6 @@
-// ProjectClientInfo.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Edit, PlusCircle, ArrowLeft, DollarSign } from 'lucide-react';
+import { Edit, PlusCircle, ArrowLeft, DollarSign, User, Phone, Mail, MapPin, FileText, Building2, Users } from 'lucide-react';
 
 import Modal from '../model/Modal';
 import ProjectClientForm from '../projects/ProjectClientForm';
@@ -71,6 +70,7 @@ const ProjectClientInfo = () => {
             setLoading(false);
         }
     }, [projectId, navigate, initialProjectName]);
+
     useEffect(() => {
         fetchClientProjectData();
     }, [fetchClientProjectData]);
@@ -117,98 +117,211 @@ const ProjectClientInfo = () => {
     };
 
     if (loading) {
-        return <LoadingSpinner />;
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+                <LoadingSpinner />
+            </div>
+        );
     }
 
     if (error) {
-        return <div className="text-center p-8 text-red-500 font-semibold">பிழை: {error}</div>;
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+                <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg shadow-lg max-w-md w-full">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">!</span>
+                            </div>
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-red-800 font-semibold">Error</h3>
+                            <p className="text-red-600 text-sm mt-1">{error}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     const displayClient = clientProjectData?.client || null;
 
     return (
-        <div className="p-6 bg-white rounded-lg shadow-md min-h-screen">
-            <div className="flex items-center justify-between mb-4">
-                <button
-                    onClick={handleBackClick}
-                    className="flex items-center px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                >
-                    <ArrowLeft size={20} className="mr-2" /> திட்டங்களுக்குத் திரும்பு
-                </button>
-                <h2 className="text-2xl font-semibold text-gray-800">திட்டத்திற்கான கிளையன்ட் தகவல்: {clientProjectData?.projectName || initialProjectName}</h2>
-                <div></div>
-            </div>
-
-            {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                    <strong className="font-bold">Error!</strong>
-                    <span className="block sm:inline"> {error}</span>
-                    <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setError(null)}>
-                        <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" /></svg>
-                    </span>
-                </div>
-            )}
-            {!displayClient ? (
-                <div className="p-4 bg-gray-50 rounded-lg flex justify-between items-center">
-                    <p className="text-gray-600 italic">இந்த திட்டத்திற்கு கிளையன்ட் தகவல் இல்லை. கீழே ஒரு கிளையன்ட்டைச் சேர்க்கவும்.</p>
-                    <button
-                        onClick={handleAdd}
-                        className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center"
-                    >
-                        <PlusCircle size={16} className="mr-1" /> Add Client
-                    </button>
-                </div>
-            ) : (
-                <div className="bg-gray-50 p-4 rounded-lg shadow-inner mb-6 flex flex-col md:flex-row items-center md:items-start space-y-4 md:space-y-0 md:space-x-6">
-                    {displayClient.photo && (
-                        <div className="flex-shrink-0">
-                            <img
-                                src={displayClient.photo}
-                                alt={`${displayClient.clientName} இன் படம்`}
-                                className="w-24 h-24 object-cover rounded-full shadow-md"
-                            />
-                        </div>
-                    )}
-                    <div className="flex-grow text-center md:text-left">
-                        <h3 className="text-xl font-medium text-gray-800 mb-2">விவரங்கள்:</h3>
-                        <p className="text-gray-700"><strong>Client Name:</strong> {displayClient.clientName || 'N/A'}</p>
-                        <p className="text-gray-700"><strong>Phone Number:</strong> {displayClient.phoneNumber || 'N/A'}</p>
-                        <p className="text-gray-700"><strong>Email:</strong> {displayClient.email || 'N/A'}</p>
-                        <p className="text-gray-700"><strong>Address:</strong> {displayClient.address || 'N/A'}</p>
-                        <p className="text-gray-700"><strong>Description:</strong> {displayClient.description || 'N/A'}</p>
-                        <div className="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                            <button
-                                onClick={handleEdit}
-                                className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-center"
-                            >
-                                <Edit size={16} className="mr-1" /> Edit
-                            </button>
-                            <button
-                                onClick={navigateToTransaction}
-                                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center justify-center"
-                            >
-                                <DollarSign size={16} className="mr-1" /> Transactions
-                            </button>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
+            <div className="max-w-4xl mx-auto">
+                {/* Header Section */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
+                    <div className="flex items-center space-x-4">
+                        <button
+                            onClick={handleBackClick}
+                            className="flex items-center px-4 py-3 bg-white text-indigo-700 rounded-xl hover:bg-indigo-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md border border-indigo-100"
+                        >
+                            <ArrowLeft size={20} className="mr-2" /> Back to Projects
+                        </button>
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                                <Users className="h-8 w-8 mr-3 text-indigo-600" />
+                                Client Information
+                            </h1>
+                            <p className="text-gray-600 mt-1">
+                                Project: {clientProjectData?.projectName || initialProjectName}
+                            </p>
                         </div>
                     </div>
                 </div>
-            )}
-            {showFormModal && (
-                <Modal onClose={handleFormClose}>
-                    <ProjectClientForm
-                        client={currentClient}
-                        projectId={projectId}
-                        onClose={handleFormClose}
-                        onSaveSuccess={handleSaveSuccess}
+
+                {/* Client Information Card */}
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                    {!displayClient ? (
+                        <div className="p-12 text-center">
+                            <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <User className="h-12 w-12 text-gray-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-600 mb-3">No Client Information</h3>
+                            <p className="text-gray-500 mb-6">This project doesn't have any client information yet.</p>
+                            <button
+                                onClick={handleAdd}
+                                className="flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl mx-auto"
+                            >
+                                <PlusCircle size={20} className="mr-2" />
+                                Add Client Information
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="p-8">
+                            {/* Client Header with Photo */}
+                            <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8 mb-8">
+                                {displayClient.photo && (
+                                    <div className="flex-shrink-0">
+                                        <img
+                                            src={displayClient.photo}
+                                            alt={`${displayClient.clientName}'s photo`}
+                                            className="w-32 h-32 object-cover rounded-2xl shadow-lg border-4 border-white"
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.src = "https://placehold.co/128x128?text=No+Photo";
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex-1 text-center md:text-left">
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center md:justify-start">
+                                        <User className="h-6 w-6 mr-2 text-indigo-600" />
+                                        {displayClient.clientName || 'N/A'}
+                                    </h2>
+                                    {displayClient.description && (
+                                        <p className="text-gray-600 italic mb-4">{displayClient.description}</p>
+                                    )}
+                                    
+                                    {/* Action Buttons */}
+                                    <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+                                        <button
+                                            onClick={handleEdit}
+                                            className="flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                                        >
+                                            <Edit size={18} className="mr-2" />
+                                            Edit Client
+                                        </button>
+                                        <button
+                                            onClick={navigateToTransaction}
+                                            className="flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-medium rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                                        >
+                                            <DollarSign size={18} className="mr-2" />
+                                            View Transactions
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Client Details Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Contact Information */}
+                                <div className="bg-gray-50 rounded-xl p-6">
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                        <Phone className="h-5 w-5 mr-2 text-blue-600" />
+                                        Contact Information
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center text-gray-700">
+                                            <Phone className="h-4 w-4 mr-3 text-gray-500" />
+                                            <span className="font-medium">Phone:</span>
+                                            <span className="ml-2">{displayClient.phoneNumber || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex items-center text-gray-700">
+                                            <User className="h-4 w-4 mr-3 text-gray-500" />
+                                            <span className="font-medium">Gst No:</span>
+                                            <span className="ml-2">{displayClient.gstNo || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex items-center text-gray-700">
+                                            <Mail className="h-4 w-4 mr-3 text-gray-500" />
+                                            <span className="font-medium">Email:</span>
+                                            <span className="ml-2">{displayClient.email || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Address Information */}
+                                <div className="bg-gray-50 rounded-xl p-6">
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                        <MapPin className="h-5 w-5 mr-2 text-green-600" />
+                                        Address
+                                    </h3>
+                                    <div className="flex items-start text-gray-700">
+                                        <MapPin className="h-4 w-4 mr-3 text-gray-500 mt-1 flex-shrink-0" />
+                                        <span>{displayClient.address || 'No address provided'}</span>
+                                    </div>
+                                </div>
+
+                                {/* Additional Information */}
+                                {displayClient.description && (
+                                    <div className="md:col-span-2 bg-gray-50 rounded-xl p-6">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                            <FileText className="h-5 w-5 mr-2 text-purple-600" />
+                                            Additional Information
+                                        </h3>
+                                        <p className="text-gray-700 leading-relaxed">
+                                            {displayClient.description}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Project Summary */}
+                            <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                                    <Building2 className="h-5 w-5 mr-2 text-indigo-600" />
+                                    Project Summary
+                                </h3>
+                                <div className="flex items-center text-gray-700">
+                                    <span className="font-medium">Project Name:</span>
+                                    <span className="ml-2 text-gray-900 font-semibold">
+                                        {clientProjectData?.projectName || initialProjectName}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Modals */}
+                {showFormModal && (
+                    <Modal onClose={handleFormClose}>
+                        <ProjectClientForm
+                            client={currentClient}
+                            projectId={projectId}
+                            onClose={handleFormClose}
+                            onSaveSuccess={handleSaveSuccess}
+                        />
+                    </Modal>
+                )}
+
+                {message && (
+                    <MessageModal
+                        message={message}
+                        onClose={() => setMessage(null)}
                     />
-                </Modal>
-            )}
-            {message && (
-                <MessageModal
-                    message={message}
-                    onClose={() => setMessage(null)}
-                />
-            )}
+                )}
+            </div>
         </div>
     );
 };

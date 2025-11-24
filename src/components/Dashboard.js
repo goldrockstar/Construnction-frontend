@@ -1,220 +1,578 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FolderOpen, CheckCircle, PiggyBank, TrendingUp } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { FolderOpen, CheckCircle, PiggyBank, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp, Building2, DollarSign, FileText, User, Calendar, BarChart3, Eye, Download, MoreVertical, Target, Award, Clock, Users, Package, ShoppingCart, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-import AdminUserList from '../admin/AdminUserList';
+const API_BASE_URL = 'http://localhost:5000/api';
 
-import RoleList from '../settings/RoleList';
-import MaterialList from '../settings/MaterialList';
-import ManpowerList from '../settings/ManpowerList';
-import ProjectList from '../projects/ProjectList';
-import ProjectClientInfo from '../projects/ProjectClientInfo';
-import ProjectAmountTransaction from '../projects/ProjectAmountTransaction';
-import ProjectMaterialMapping from '../projects/ProjectMaterialMapping';
-import ProjectMaterialUsage from '../projects/ProjectMaterialUsage';
-import Expenditure from './Expenditure';
-import PersonalExpenditure from './PersonalExpenditure';
+// Helper function to format date
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+        return new Date(dateString).toLocaleDateString('en-IN', {
+            year: 'numeric', month: 'short', day: 'numeric'
+        });
+    } catch {
+        return 'Invalid Date';
+    }
+};
 
-import Receipt from './Receipt';
-import Quotation from '../projects/Quotation';
-import Invoice from '../projects/Invoice';
-import SalaryConfig from '../projects/SalaryConfig';
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
-import Profile from '../settings/Profile';
-import SalaryReport from '../reports/SalaryReport';
-import StockReport from '../reports/StockReport';
-import ProfitLossReport from '../reports/ProfitLossReport';
+const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+    const [timeRange, setTimeRange] = useState('monthly');
 
-
-const chartData = [
-    { name: 'ஜனவரி', value: 65 },
-    { name: 'பிப்ரவரி', value: 59 },
-    { name: 'மார்ச்', value: 80 },
-    { name: 'ஏப்ரல்', value: 81 },
-    { name: 'மെയ്', value: 56 },
-    { name: 'ஜூன்', value: 55 },
-    { name: 'ஜூலை', value: 40 },
-    { name: 'ஆகஸ்ட்', value: 60 },
-    { name: 'செப்டம்பர்', value: 70 },
-    { name: 'ஒக்டோபர்', value: 75 },
-    { name: 'நவம்பர்', value: 68 },
-    { name: 'டிசம்பர்', value: 72 },
-];
-
-const Dashboard = ({ activeSection, setActiveSection }) => {
-    const [selectedYear, setSelectedYear] = useState('2024');
-    const [showProfile, setShowProfile] = useState(false);
+    // --- Dashboard States ---
+    const [stats, setStats] = useState({
+        totalProjects: 0,
+        completedProjects: 0,
+        totalRevenue: 0,
+        totalExpenses: 0,
+        totalBudget: 0,
+        totalProfitLoss: 0,
+        activeProjects: 0,
+        pendingInvoices: 0
+    });
     
+    const [chartData, setChartData] = useState([]);
+    const [revenueData, setRevenueData] = useState([]);
+    const [projectStatusData, setProjectStatusData] = useState([]);
+
+    // --- Dropdown States ---
+    const [projectsDetailList, setProjectsDetailList] = useState([]); 
+    const [invoicesDetailList, setInvoicesDetailList] = useState([]); 
+    const [expensesDetailList, setExpensesDetailList] = useState([]); 
+    
+    // --- Dropdown Toggle States ---
+    const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(false); 
+    const [isInvoicesDropdownOpen, setIsInvoicesDropdownOpen] = useState(false); 
+    const [isExpensesDropdownOpen, setIsExpensesDropdownOpen] = useState(false); 
+    
+    const [loading, setLoading] = useState(false);
+
+    // --- Data Fetching Logic ---
     useEffect(() => {
-    }, []);
-
-    const renderSectionContent = () => {
-        if (showProfile) {
-            return <Profile />;
+        if (!activeSection || activeSection === 'overview' || activeSection === 'dashboard') {
+            fetchDashboardData();
         }
+    }, [activeSection, selectedYear, timeRange]);
 
-        switch (activeSection) {
-            case 'overview':
-                return (
-                    <>
-                        <div className="flex justify-between items-center mb-8">
-                            <h1 className="text-3xl font-bold text-gray-800">டேஷ்போர்டு</h1>
-                            <div className="flex items-center space-x-4">
-                                <span className="text-gray-600">கலாவணி டி</span>
-                                <div 
-                                    className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-semibold cursor-pointer"
-                                    onClick={() => setShowProfile(true)}
-                                >
-                                    <img
-                                        src="https://placehold.co/40x40/cccccc/333333?text=KT"
-                                        alt="User Avatar"
-                                        className="rounded-full"
-                                        onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/40x40/cccccc/333333?text=KT"; }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return; 
+            const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                            
-                            <div className="bg-card-bg p-6 rounded-lg shadow-custom flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">புரொஜெக்ட்ஸ்</p>
-                                    <h2 className="text-3xl font-bold text-gray-800">0</h2>
-                                </div>
-                                <div className="p-3 bg-blue-100 text-blue-600 rounded-full">
-                                    <FolderOpen size={28} />
-                                </div>
-                            </div>
+            // Fetch Projects
+            const projectsRes = await fetch(`${API_BASE_URL}/projects`, { headers });
+            const projectsData = await projectsRes.json();
+            
+            let projectsList = [];
+            if (Array.isArray(projectsData)) projectsList = projectsData;
+            else if (projectsData.projects) projectsList = projectsData.projects;
 
-                            
-                            <div className="bg-card-bg p-6 rounded-lg shadow-custom flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">முடிந்த புரொஜெக்ட்ஸ்</p>
-                                    <h2 className="text-3xl font-bold text-gray-800">0</h2>
-                                </div>
-                                <div className="p-3 bg-green-100 text-green-600 rounded-full">
-                                    <CheckCircle size={28} />
-                                </div>
-                            </div>
+            const totalProjects = projectsList.length;
+            const completedProjects = projectsList.filter(p => p.projectStatus === 'Completed').length;
+            const activeProjects = projectsList.filter(p => p.projectStatus === 'In Progress').length;
+            const totalBudget = projectsList.reduce((sum, p) => sum + (parseFloat(p.estimatedBudget) || 0), 0);
 
-                            
-                            <div className="bg-card-bg p-6 rounded-lg shadow-custom flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">மொத்த வருமானம்</p>
-                                    <h2 className="text-3xl font-bold text-gray-800">₹ 0</h2>
-                                </div>
-                                <div className="p-3 bg-yellow-100 text-yellow-600 rounded-full">
-                                    <PiggyBank size={28} />
-                                </div>
-                            </div>
+            setProjectsDetailList(projectsList);
 
-                            
-                            <div className="bg-card-bg p-6 rounded-lg shadow-custom flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">மொத்த பயன்பாடு</p>
-                                    <h2 className="text-3xl font-bold text-gray-800">₹ 0</h2>
-                                </div>
-                                <div className="p-3 bg-red-100 text-red-600 rounded-full">
-                                    <TrendingUp size={28} />
-                                </div>
-                            </div>
-                        </div>
+            // Fetch Invoices
+            const invoicesRes = await fetch(`${API_BASE_URL}/invoices`, { headers });
+            const invoicesData = await invoicesRes.json();
+            
+            const totalRevenue = invoicesData.reduce((sum, inv) => sum + (parseFloat(inv.grandTotal || inv.totalAmount) || 0), 0);
+            const pendingInvoices = invoicesData.filter(inv => new Date(inv.dueDate) > new Date()).length;
+            setInvoicesDetailList(invoicesData);
 
-                        
-                        <div className="bg-card-bg p-6 rounded-lg shadow-custom">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-semibold text-gray-800">எனது முதல் தரவுத்தொகுப்பு</h3>
-                                <div className="flex items-center space-x-2">
-                                    <label htmlFor="year-select" className="text-gray-600 text-sm">ஆண்டைத் தேர்ந்தெடுக்கவும்</label>
-                                    <select
-                                        id="year-select"
-                                        className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                                        value={selectedYear}
-                                        onChange={(e) => setSelectedYear(e.target.value)}
-                                    >
-                                        <option value="2024">2024</option>
-                                        <option value="2023">2023</option>
-                                        <option value="2022">2022</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div style={{ width: '100%', height: 300 }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart
-                                        data={chartData}
-                                        margin={{
-                                            top: 5,
-                                            right: 30,
-                                            left: 20,
-                                            bottom: 5,
-                                        }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                                        <XAxis dataKey="name" stroke="#6b7280" />
-                                        <YAxis stroke="#6b7280" />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}
-                                            labelStyle={{ color: '#333', fontWeight: 'bold' }}
-                                            itemStyle={{ color: '#555' }}
-                                        />
-                                        <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </>
-                );
-            case 'settings-roles':
-                return <RoleList />;
-            case 'settings-materials':
-                return <MaterialList />;
-            case 'settings-manpower':
-                return <ManpowerList />;
-            case 'settings-profile':
-                return <Profile />;
-            case 'projects-list':
-                return <ProjectList />;
-            case 'projects-client-info':
-                return <ProjectClientInfo />;
-            case 'projects-amount-transaction':
-                return <ProjectAmountTransaction />;
-            case 'projects-material-mapping':
-                return <ProjectMaterialMapping />;
-            case 'projects-material-usage':
-                return <ProjectMaterialUsage />;
-            case 'projects-salary-config':
-                return <SalaryConfig />;
-            case 'projects-quotation':
-                return <Quotation />;
-            case 'projects-invoice':
-                return <Invoice />;
-            case 'expenditure':
-                return <Expenditure />;
-            case 'personal-expenditure':
-                return <PersonalExpenditure />;
-            case 'reports-SalaryReport':
-                return <SalaryReport />;
-            case 'reports-StockReport':
-                return <StockReport />;
-            case 'reports-ProfitLossReport':
-                return <ProfitLossReport />;
-            case 'receipt':
-                return <Receipt />;
-            case 'admin-users':
-                return <AdminUserList />;
-            default:
-                return (
-                    <div className="flex-1 p-8 bg-dashboard-bg flex items-center justify-center text-gray-600 text-xl">
-                        <p>பிரிவு காணப்படவில்லை: {activeSection}</p>
-                    </div>
-                );
+            // Fetch Expenses
+            let totalExpenses = 0;
+            let allExpenses = [];
+
+            const expensePromises = projectsList.map(project => 
+                fetch(`${API_BASE_URL}/transactions/summary/${project._id}`, { headers })
+                    .then(res => res.json())
+                    .catch(err => ({ summary: { totalExpense: 0 }, allTransactions: [] }))
+            );
+
+            const summaries = await Promise.all(expensePromises);
+            
+            summaries.forEach((data, index) => {
+                if (data && data.summary) {
+                    totalExpenses += (parseFloat(data.summary.totalExpense) || 0);
+                }
+                if (data && data.allTransactions && Array.isArray(data.allTransactions)) {
+                    const projectExpenses = data.allTransactions
+                        .filter(t => t.type === 'Expense')
+                        .map(t => ({
+                            ...t,
+                            projectName: projectsList[index]?.projectName || 'Unknown Project'
+                        }));
+                    allExpenses = [...allExpenses, ...projectExpenses];
+                }
+            });
+
+            allExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            setExpensesDetailList(allExpenses);
+
+            // Calculate Profit/Loss
+            const totalProfitLoss = totalRevenue - totalExpenses;
+
+            setStats({
+                totalProjects,
+                completedProjects,
+                totalRevenue,
+                totalExpenses,
+                totalBudget,
+                totalProfitLoss,
+                activeProjects,
+                pendingInvoices
+            });
+
+            // Generate Chart Data
+            generateChartData(invoicesData, allExpenses, selectedYear);
+            generateRevenueData(invoicesData, timeRange);
+            generateProjectStatusData(projectsList);
+
+        } catch (error) {
+            console.error("Error loading dashboard stats:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
+    const generateChartData = (invoices, expenses, year) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        let monthlyStats = months.map(name => ({ name, income: 0, expense: 0, profit: 0 }));
+
+        invoices.forEach(inv => {
+            const d = new Date(inv.invoiceDate);
+            if (!isNaN(d) && d.getFullYear().toString() === year) {
+                monthlyStats[d.getMonth()].income += (parseFloat(inv.grandTotal || inv.totalAmount) || 0);
+            }
+        });
+
+        expenses.forEach(exp => {
+            const d = new Date(exp.date);
+            if (!isNaN(d) && d.getFullYear().toString() === year) {
+                monthlyStats[d.getMonth()].expense += (parseFloat(exp.amount) || 0);
+            }
+        });
+
+        monthlyStats = monthlyStats.map(month => ({
+            ...month,
+            profit: month.income - month.expense
+        }));
+
+        setChartData(monthlyStats);
+    };
+
+    const generateRevenueData = (invoices, range) => {
+        // Simplified revenue data generation
+        const data = [
+            { name: 'Q1', revenue: 450000, target: 500000 },
+            { name: 'Q2', revenue: 620000, target: 600000 },
+            { name: 'Q3', revenue: 580000, target: 650000 },
+            { name: 'Q4', revenue: 710000, target: 700000 },
+        ];
+        setRevenueData(data);
+    };
+
+    const generateProjectStatusData = (projects) => {
+        const statusCount = {
+            'Completed': projects.filter(p => p.projectStatus === 'Completed').length,
+            'In Progress': projects.filter(p => p.projectStatus === 'In Progress').length,
+            'Planning': projects.filter(p => p.projectStatus === 'Planning').length,
+            'On Hold': projects.filter(p => p.projectStatus === 'On Hold').length,
+        };
+        
+        const data = Object.entries(statusCount).map(([name, value]) => ({ name, value }));
+        setProjectStatusData(data);
+    };
+
+    const toggleDropdown = (dropdown) => {
+        setIsProjectsDropdownOpen(dropdown === 'projects' ? !isProjectsDropdownOpen : false);
+        setIsInvoicesDropdownOpen(dropdown === 'invoices' ? !isInvoicesDropdownOpen : false);
+        setIsExpensesDropdownOpen(dropdown === 'expenses' ? !isExpensesDropdownOpen : false);
+    };
+
+    const StatCard = ({ title, value, icon: Icon, color, change, onClick, isDropdownOpen }) => (
+        <div 
+            onClick={onClick}
+            className={`bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl cursor-pointer transition-all duration-300 transform hover:-translate-y-1 ${
+                isDropdownOpen ? 'ring-2 ring-blue-500' : ''
+            }`}
+        >
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <p className="text-gray-600 text-sm font-semibold uppercase tracking-wider">{title}</p>
+                    <h2 className="text-3xl font-bold text-gray-800 mt-2">{value}</h2>
+                    {change && (
+                        <div className={`flex items-center mt-2 text-sm font-medium ${
+                            change > 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                            {change > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                            <span className="ml-1">{Math.abs(change)}%</span>
+                        </div>
+                    )}
+                </div>
+                <div className={`p-3 rounded-xl ${color} shadow-lg`}>
+                    <Icon size={24} className="text-white" />
+                </div>
+            </div>
+            {onClick && (
+                <div className="flex items-center justify-between text-xs text-blue-600 font-semibold mt-4 pt-3 border-t border-gray-100">
+                    <span>View Details</span>
+                    {isDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </div>
+            )}
+        </div>
+    );
+
+    const renderSectionContent = () => {
+        if (loading) {
+            return (
+                <div className="flex justify-center items-center h-96">
+                    <div className="text-center">
+                        <RefreshCw className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
+                        <p className="text-gray-600 text-lg font-medium">Loading Dashboard...</p>
+                        <p className="text-gray-500 text-sm">Crunching the numbers</p>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-8">
+                {/* Header */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">Business Overview</h1>
+                        <p className="text-gray-600 mt-2">Welcome to your business dashboard</p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        <select
+                            className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/80 backdrop-blur-sm"
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                        >
+                            <option value="2024">2024</option>
+                            <option value="2023">2023</option>
+                            <option value="2025">2025</option>
+                        </select>
+                        <select
+                            className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/80 backdrop-blur-sm"
+                            value={timeRange}
+                            onChange={(e) => setTimeRange(e.target.value)}
+                        >
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Main Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard
+                        title="Total Projects"
+                        value={stats.totalProjects}
+                        icon={FolderOpen}
+                        color="bg-blue-500"
+                        change={12}
+                        onClick={() => toggleDropdown('projects')}
+                        isDropdownOpen={isProjectsDropdownOpen}
+                    />
+                    
+                    <StatCard
+                        title="Total Revenue"
+                        value={`₹${stats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                        icon={TrendingUp}
+                        color="bg-green-500"
+                        change={8}
+                        onClick={() => toggleDropdown('invoices')}
+                        isDropdownOpen={isInvoicesDropdownOpen}
+                    />
+                    
+                    <StatCard
+                        title="Total Expenses"
+                        value={`₹${stats.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                        icon={TrendingDown}
+                        color="bg-red-500"
+                        change={-5}
+                        onClick={() => toggleDropdown('expenses')}
+                        isDropdownOpen={isExpensesDropdownOpen}
+                    />
+                    
+                    <StatCard
+                        title={stats.totalProfitLoss >= 0 ? 'Net Profit' : 'Net Loss'}
+                        value={`₹${Math.abs(stats.totalProfitLoss).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                        icon={stats.totalProfitLoss >= 0 ? Award : Target}
+                        color={stats.totalProfitLoss >= 0 ? 'bg-emerald-500' : 'bg-orange-500'}
+                        change={stats.totalProfitLoss >= 0 ? 15 : -10}
+                    />
+                </div>
+
+                {/* Secondary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard
+                        title="Active Projects"
+                        value={stats.activeProjects}
+                        icon={Clock}
+                        color="bg-purple-500"
+                        change={5}
+                    />
+                    
+                    <StatCard
+                        title="Completed"
+                        value={stats.completedProjects}
+                        icon={CheckCircle}
+                        color="bg-teal-500"
+                        change={20}
+                    />
+                    
+                    <StatCard
+                        title="Total Budget"
+                        value={`₹${stats.totalBudget.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                        icon={DollarSign}
+                        color="bg-indigo-500"
+                        change={10}
+                    />
+                    
+                    <StatCard
+                        title="Pending Invoices"
+                        value={stats.pendingInvoices}
+                        icon={FileText}
+                        color="bg-amber-500"
+                        change={-3}
+                    />
+                </div>
+
+                {/* Charts Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Income vs Expense Chart */}
+                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+                                Financial Performance
+                            </h3>
+                            <div className="flex items-center space-x-2">
+                                <Eye className="w-4 h-4 text-gray-400 cursor-pointer" />
+                                <Download className="w-4 h-4 text-gray-400 cursor-pointer" />
+                            </div>
+                        </div>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                    <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                                    <YAxis stroke="#6b7280" fontSize={12} />
+                                    <Tooltip 
+                                        contentStyle={{ 
+                                            backgroundColor: '#fff', 
+                                            border: 'none', 
+                                            borderRadius: '8px', 
+                                            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                                            padding: '12px'
+                                        }}
+                                    />
+                                    <Legend />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="income" 
+                                        name="Income" 
+                                        stroke="#10b981" 
+                                        strokeWidth={3}
+                                        dot={{ fill: '#10b981' }}
+                                        activeDot={{ r: 6 }}
+                                    />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="expense" 
+                                        name="Expense" 
+                                        stroke="#ef4444" 
+                                        strokeWidth={3}
+                                        dot={{ fill: '#ef4444' }}
+                                        activeDot={{ r: 6 }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Project Status Chart */}
+                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
+                            <BarChart3 className="w-5 h-5 mr-2 text-purple-600" />
+                            Project Status Distribution
+                        </h3>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={projectStatusData}
+                                        cx="50%"
+                                        cy="50%"
+                                        labelLine={false}
+                                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                    >
+                                        {projectStatusData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Revenue vs Target Chart */}
+                <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
+                        <Target className="w-5 h-5 mr-2 text-orange-600" />
+                        Revenue vs Target
+                    </h3>
+                    <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={revenueData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                <XAxis dataKey="name" stroke="#6b7280" />
+                                <YAxis stroke="#6b7280" />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="revenue" name="Actual Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="target" name="Target" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Dropdown Sections */}
+                {isProjectsDropdownOpen && (
+                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl border border-white/20 overflow-hidden animate-fade-in">
+                        <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 text-white">
+                            <h3 className="text-lg font-bold flex items-center">
+                                <FolderOpen className="w-5 h-5 mr-2" />
+                                Project Details
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto max-h-96">
+                            <table className="w-full">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Project</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Client</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Budget</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {projectsDetailList.slice(0, 8).map((project) => (
+                                        <tr key={project._id} className="hover:bg-blue-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-900">{project.projectName}</td>
+                                            <td className="px-6 py-4 text-gray-600">{project.client?.clientName || 'N/A'}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                    project.projectStatus === 'Completed' ? 'bg-green-100 text-green-800' :
+                                                    project.projectStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                                    'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                    {project.projectStatus}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-bold text-blue-600">
+                                                ₹{parseFloat(project.estimatedBudget || 0).toLocaleString('en-IN')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {isInvoicesDropdownOpen && (
+                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl border border-white/20 overflow-hidden animate-fade-in">
+                        <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 text-white">
+                            <h3 className="text-lg font-bold flex items-center">
+                                <FileText className="w-5 h-5 mr-2" />
+                                Recent Invoices
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto max-h-96">
+                            <table className="w-full">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Invoice</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Client</th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {invoicesDetailList.slice(0, 8).map((inv) => (
+                                        <tr key={inv._id} className="hover:bg-green-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-900">{inv.invoiceNumber || 'N/A'}</td>
+                                            <td className="px-6 py-4 text-gray-600">{formatDate(inv.invoiceDate)}</td>
+                                            <td className="px-6 py-4 text-gray-600">{inv.invoiceTo?.clientName || inv.invoiceTo?.name || 'N/A'}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-green-600">
+                                                ₹{parseFloat(inv.grandTotal || inv.totalAmount || 0).toLocaleString('en-IN')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {isExpensesDropdownOpen && (
+                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl border border-white/20 overflow-hidden animate-fade-in">
+                        <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 text-white">
+                            <h3 className="text-lg font-bold flex items-center">
+                                <TrendingDown className="w-5 h-5 mr-2" />
+                                Recent Expenses
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto max-h-96">
+                            <table className="w-full">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Project</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {expensesDetailList.slice(0, 8).map((exp, index) => (
+                                        <tr key={exp.id || index} className="hover:bg-red-50/50 transition-colors">
+                                            <td className="px-6 py-4 text-gray-600">{formatDate(exp.date)}</td>
+                                            <td className="px-6 py-4 font-medium text-gray-900">{exp.projectName}</td>
+                                            <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{exp.description || exp.source}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-red-600">
+                                                ₹{parseFloat(exp.amount || 0).toLocaleString('en-IN')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
-        <div className="flex-1 p-8 bg-dashboard-bg overflow-y-auto">
+        <div className="flex-1 p-6 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 overflow-y-auto">
             {renderSectionContent()}
         </div>
     );

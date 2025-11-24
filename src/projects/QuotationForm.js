@@ -1,1063 +1,686 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Trash2, PlusCircle, Save, Ban } from 'lucide-react';
+import { Save, Ban, Trash2, User, Building, Plus, RefreshCw, FileText, Calculator, IndianRupee, Calendar, Hash, Package, Percent, X } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 
-// A placeholder for API Base URL. In a real app, this should be in an environment variable.
 const API_BASE_URL = 'http://localhost:5000/api';
 
-// --- Utility Functions ---
+const QuotationForm = ({ initialData, onClose }) => {
+    const { id } = useParams();
+    const navigate = useNavigate();
 
-const calculateTotalAmount = (items) => {
-  return (Array.isArray(items) ? items : []).reduce((total, item) => {
-    // Materials: quantity * amount. Others (manpowers/expenditures): amount only (implicitly quantity is 1).
-    if (item.quantity !== undefined) {
-      const quantity = parseFloat(item.quantity) || 0;
-      const amount = parseFloat(item.amount) || 0;
-      return total + (quantity * amount);
-    }
-    const amount = parseFloat(item.amount) || 0;
-    return total + amount;
-  }, 0);
-};
+    const [projects, setProjects] = useState([]);
+    const [clients, setClients] = useState([]);
+    const [profile, setProfile] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
-const fetchActualMaterialExpenditures = async (projectId, token) => {
-  if (!projectId || !token) return [];
+    const currentId = initialData?._id || id;
 
-  const finalProjectId = typeof projectId === ' object ' ? projectId._id : projectId;
-
-  if (!finalProjectId) return [];
-  try {
-    const materialResponse = await fetch(`${API_BASE_URL}/projectMaterialMappings?projectId=${projectId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-    });
-
-    if (!materialResponse.ok) {
-      console.error(`Failed to fetch actual material expenditure: ${materialResponse.statusText}`);
-      return [];
-    }
-    const fetchedMaterials = await materialResponse.json();
-
-    // IMPORTANT MAPPING: material mappings might have 'finalAmount' or 'totalCost' 
-    // but the quotation form uses 'quantity' * 'amount'. We need unitPrice.
-    return fetchedMaterials.map(item => ({
-      materialName: item.materialName || 'N/A',
-      quantity: parseFloat(item.quantity || 0),
-      unit: item.unit || 'Nos',
-      // We use the unitPrice if available for calculation in the form
-      amount: parseFloat(item.unitPrice || item.amount || 0),
-      gst: parseFloat(item.gst || 0),
-    }));
-  } catch (err) {
-    console.error("Error fetching actual material expenditures:", err);
-    return [];
-  }
-};
-
-// --- QuotationTable Component (Remains same) ---
-
-const QuotationTable = React.memo(({ category, items, handleItemChange, handleAddItem, handleRemoveItem }) => {
-  // ... (Your QuotationTable component code remains here, unchanged)
-  const columnConfigs = {
-    materials: [
-      { field: 'materialName', label: 'Material Name', placeholder: 'Enter material name', type: 'text' },
-      { field: 'quantity', label: 'Quantity', type: 'number' },
-      { field: 'unit', label: 'Unit', placeholder: 'e.g., Nos, Kg', type: 'text' },
-      { field: 'amount', label: 'Amount (per unit)', type: 'number' },
-      { field: 'gst', label: 'GST (%)', type: 'number' },
-    ],
-    manpowers: [
-      { field: 'manpowerName', label: 'Name', placeholder: 'Manpower name', type: 'text' },
-      { field: 'role', label: 'Role', placeholder: 'e.g., driver', type: 'text' },
-      { field: 'amount', label: 'Amount', type: 'number' },
-    ],
-    expenditures: [
-      { field: 'expenditureName', label: 'Expenditure Name', placeholder: 'e.g., food', type: 'text' },
-      { field: 'description', label: 'Description', placeholder: 'e.g., description', type: 'text' },
-      { field: 'amount', label: 'Amount', type: 'number' },
-    ],
-  };
-
-  const columns = columnConfigs[category];
-  const title = category.charAt(0).toUpperCase() + category.slice(1).replace('s', '');
-  const addButtonText = `Add New ${title}`;
-
-  return (
-    <div className="space-y-4">
-      <h4 className="text-2xl font-semibold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">
-        {title} Cost
-      </h4>
-      <div className="overflow-x-auto rounded-lg shadow-md">
-        <table className="min-w-full bg-white border border-gray-200">
-          <thead className="bg-blue-100">
-            <tr>
-              {columns.map((col, index) => (
-                <th key={index} className="py-3 px-4 text-left text-sm font-semibold text-blue-700">
-                  {col.label}
-                </th>
-              ))}
-              <th className="py-3 px-4 text-left text-sm font-semibold text-blue-700">Line Total</th>
-              <th className="py-3 px-4 text-center text-sm font-semibold text-blue-700 w-24">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.isArray(items) && items.map((item, index) => (
-              <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                {columns.map((col, colIndex) => (
-                  <td key={colIndex} className="p-2">
-                    <input
-                      type={col.type}
-                      name={col.field}
-                      // Use col.type === 'number' ? item[col.field] : (item[col.field] || '') to handle number fields not showing '0' initially
-                      value={item[col.field] === undefined || item[col.field] === null ? '' : item[col.field]}
-                      onChange={(e) => handleItemChange(category, index, e)}
-                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
-                      placeholder={col.placeholder || ''}
-                      min={col.type === 'number' ? '0' : undefined}
-                      step={col.type === 'number' ? 'any' : undefined}
-                    />
-                  </td>
-                ))}
-                <td className="p-2 text-sm font-medium text-gray-700">
-                  {/* Calculate Line Total based on category logic */}
-                  {category === 'materials' ?
-                    `₹${((parseFloat(item.quantity) || 0) * (parseFloat(item.amount) || 0)).toFixed(2)}` :
-                    `₹${(parseFloat(item.amount) || 0).toFixed(2)}`
-                  }
-                </td>
-                <td className="p-2 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(category, index)}
-                    className="p-2 text-red-600 hover:text-red-800 transition-colors duration-200 rounded-full hover:bg-red-100"
-                    aria-label={`Remove item`}
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button
-        type="button"
-        onClick={() => handleAddItem(category)}
-        className="mt-4 px-6 py-2 bg-blue-100 text-blue-700 rounded-full shadow-sm hover:bg-blue-200 transition-colors duration-200 flex items-center justify-center gap-2 font-medium"
-      >
-        <PlusCircle size={16} />
-        {addButtonText}
-      </button>
-    </div>
-  );
-});
-
-
-// --- QuotationForm Component ---
-
-const QuotationForm = ({ formTitle, onSubmit, initialData, submitButtonText }) => {
-  const navigate = useNavigate();
-  const { id } = useParams();
-
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [formData, setFormData] = useState(initialData || {
-    quotationDate: new Date().toISOString().slice(0, 10),
-    dueDate: '',
-    logo: '',
-    quotationNumber: '',
-    quotationFrom: '',
-    gstFrom: '',
-    addressFrom: '',
-    contactNumberFrom: '',
-    quotationTo: '',
-    quotationToName: '',
-    clientNameTo: '',
-    gstTo: '',
-    addressTo: '',
-    phoneTo: '',
-    totalAmount: 0,
-    signedDate: '',
-    signature: '',
-    termsAndConditions: '',
-    projectId: '',
-    materials: [],
-    manpowers: [],
-    expenditures: [],
-  });
-  const [projects, setProjects] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [profile, setProfile] = useState({});
-
-  const updateCalculations = useCallback((data) => {
-    const materialTotal = calculateTotalAmount(data.materials);
-    const manpowerTotal = calculateTotalAmount(data.manpowers);
-    const expenditureTotal = calculateTotalAmount(data.expenditures);
-    return materialTotal + manpowerTotal + expenditureTotal;
-  }, []);
-
-  const updateFormWithProjectData = useCallback((project, client, prevData, profileData) => {
-    let updatedClientDetails = {};
-    if (client && project) {
-      updatedClientDetails = {
-        quotationTo: client._id,
-        quotationToName: client.clientName || '',
-        gstTo: project.gst || '',
-        addressTo: client.address || '',
-        phoneTo: client.phoneNumber || client.phone || '', // Check both fields
-      };
-    }
-
-    // NOTE: Project's ESTIMATED items (Usually not used when fetching actuals, but kept as fallback)
-    const projectMaterials = (project?.materials || []).map(item => ({
-      materialName: item.materialName || '',
-      quantity: item.quantity || 0,
-      unit: item.unit || 'Nos',
-      amount: item.amount || 0,
-      gst: item.gst || 0,
-    }));
-
-    const projectManpowers = (project?.expenditures || []).filter(item => item.expenditureType === 'Salary').map(item => ({
-      manpowerName: item.expenditureName || item.manpowerName || '',
-      role: item.role || '',
-      amount: item.amount || 0,
-    }));
-
-    const projectExpenditures = (project?.expenditures || []).filter(item => item.expenditureType === 'Other').map(item => ({
-      expenditureName: item.expenditureName || '',
-      description: item.description || '',
-      amount: item.amount || 0,
-    }));
-
-    // Use the ACTUAL data if it was fetched and exists in prevData (which is `loadedQuotationData`)
-    const materialsToUse = prevData.materials?.length > 0 ? prevData.materials : projectMaterials;
-    const manpowersToUse = prevData.manpowers?.length > 0 ? prevData.manpowers : projectManpowers;
-    const expendituresToUse = prevData.expenditures?.length > 0 ? prevData.expenditures : projectExpenditures;
-
-
-    const newFormData = {
-      ...prevData,
-      ...updatedClientDetails,
-      // Load 'From' details from profile
-      quotationFrom: profileData?.profile?.companyName || '',
-      gstFrom: profileData?.profile?.gst || '',
-      addressFrom: profileData?.profile?.address || '',
-      contactNumberFrom: profileData?.profile?.contactNumber || '',
-
-      // 🎯 ITEMS-ஐப் புதுப்பிக்க (Actual Data-வைப் பயன்படுத்துகிறோம்)
-      materials: materialsToUse,
-      manpowers: manpowersToUse,
-      expenditures: expendituresToUse,
-
-      // Retain existing fields from loaded quotation data if available
-      quotationDate: prevData.quotationDate || new Date().toISOString().slice(0, 10),
-      dueDate: prevData.dueDate || '',
-      logo: prevData.logo || '',
-      quotationNumber: prevData.quotationNumber || '',
-      termsAndConditions: prevData.termsAndConditions || '',
-      signedDate: prevData.signedDate || '',
-      signature: prevData.signature || '',
-      projectId: prevData.projectId || project?._id || '',
-    };
-
-    return { ...newFormData, totalAmount: updateCalculations(newFormData) };
-  }, [updateCalculations]);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    const token = localStorage.getItem('token');
-    if (!token) {
-      toast.error('Authentication is required. Please log in.');
-      navigate('/login');
-      return;
-    }
-
-    try {
-      const [projectsRes, clientsRes, profileRes] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/projects`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/clients`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/users/profile`, { headers: { 'Authorization': `Bearer ${token}` } }),
-      ]);
-
-      const projectsData = projectsRes.status === 'fulfilled' && projectsRes.value.ok ? await projectsRes.value.json() : [];
-      const clientsData = clientsRes.status === 'fulfilled' && clientsRes.value.ok ? await clientsRes.value.json() : [];
-      const profileData = profileRes.status === 'fulfilled' && profileRes.value.ok ? await profileRes.value.json() : {};
-
-      setProjects(projectsData);
-      setClients(clientsData);
-      setProfile(profileData);
-
-      // 🎯 FIX 1: initialData-வை நேரடியாகப் பயன்படுத்துங்கள், இல்லையெனில் வெற்று ஆப்ஜெக்ட்
-      let loadedQuotationData = initialData && Object.keys(initialData).length > 0 ? initialData : {};
-
-      if (id) {
-        // Fetch existing quotation data via URL ID
-        const quotationRes = await fetch(`${API_BASE_URL}/quotations/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (quotationRes.ok) {
-          loadedQuotationData = await quotationRes.json();
-        } else {
-          toast.error('Failed to fetch quotation data.');
-        }
-      }
-
-      // --- Project ID-ஐப் பிரித்தெடுத்தல் மற்றும் சரிபார்த்தல் (Critical Fix) ---
-
-      // 🎯 FIX 2: Project ID-ஐ ஒரு String-ஆகப் பிரித்தெடுத்தல்
-      let currentProjectId = loadedQuotationData.projectId;
-
-      // Nested structure-இல் இருந்து ID-ஐப் பெறுதல் (Backend format: { _id: '...' })
-      if (typeof currentProjectId === 'object' && currentProjectId !== null && currentProjectId._id) {
-        currentProjectId = currentProjectId._id;
-      } else if (loadedQuotationData.project && loadedQuotationData.project._id) {
-        // சில சமயம் project முழு object-ஆக இருக்கும்
-        currentProjectId = loadedQuotationData.project._id;
-      }
-
-      // Project-ஐக் கண்டறிய, பிரித்தெடுக்கப்பட்ட ID-ஐப் பயன்படுத்துக.
-      let selectedProject = projectsData.find(p => p && p._id === currentProjectId);
-
-      // Client ID-ஐப் பிரித்தெடுத்தல்
-      let client = clientsData.find(c => c && c._id === (selectedProject?.client?._id || loadedQuotationData.quotationTo?.clientId));
-
-      // -----------------------------------------------------------------
-
-      // If NEW QUOTATION or if a project is pre-selected, load ACTUAL Project Data
-      if (!id && currentProjectId) {
-
-        // 1. Fetch ALL Expenditures (Salary & Other)
-        const allExpenditureResponse = await fetch(`${API_BASE_URL}/expenditures?projectId=${currentProjectId}`, {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const fetchedExpenditures = allExpenditureResponse.ok ? await allExpenditureResponse.json() : [];
-
-        // 2. Fetch Actual Materials (Utility Function-இல் உள்ளே உள்ள FIX-ஐப் பார்க்கவும்)
-        const fetchedMaterials = await fetchActualMaterialExpenditures(currentProjectId, token);
-
-
-        // 3. Map Actual Expenditures to Quotation Form State structure
-        loadedQuotationData.manpowers = fetchedExpenditures
-          .filter(item => item.expenditureType === 'Salary')
-          .map(item => ({
-            manpowerName: item.manpowerName || 'N/A',
-            role: item.description || 'N/A', // Using description for role
-            amount: parseFloat(item.amount || 0),
-          }));
-
-        loadedQuotationData.expenditures = fetchedExpenditures
-          .filter(item => item.expenditureType === 'Other')
-          .map(item => ({
-            expenditureName: item.expenditureName || 'N/A',
-            description: item.description || 'N/A',
-            amount: parseFloat(item.amount || 0),
-          }));
-
-        loadedQuotationData.materials = fetchedMaterials;
-      }
-      // END ACTUAL DATA LOADING LOGIC (Only for new/pre-selected project)
-
-      // Profile Data மற்றும் Project ID-ஐ இறுதிப் படிவத்தில் அமைத்தல்
-      loadedQuotationData.projectId = currentProjectId || ''; // Ensure the final project ID is set
-
-      if (!id && Object.keys(profileData).length > 0) {
-        loadedQuotationData = {
-          ...loadedQuotationData,
-          quotationFrom: profileData.profile?.companyName || '',
-          gstFrom: profileData.profile?.gst || '',
-          addressFrom: profileData.profile?.address || '',
-          contactNumberFrom: profileData.profile?.contactNumber || '',
-        };
-      }
-
-      const newFormData = updateFormWithProjectData(selectedProject, client, loadedQuotationData, profileData);
-
-      // Recalculate total amount after loading all line items
-      newFormData.totalAmount = updateCalculations(newFormData);
-
-      setFormData(newFormData);
-    } catch (error) {
-      console.error('An unexpected error occurred during initial data fetch:', error);
-      toast.error(`An unexpected error occurred: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate, id, initialData, updateFormWithProjectData, updateCalculations]);
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData(prevData => {
-      const newData = { ...prevData, [name]: value };
-      return { ...newData, totalAmount: updateCalculations(newData) };
-    });
-  }, [updateCalculations]);
-
-  // 🎯 Project Change Handler - ACTUAL data loading logic
-  const handleProjectChange = useCallback(async (e) => {
-    const projectId = e.target.value;
-
-    if (!projectId) {
-      setFormData(prevData => ({
-        ...prevData,
+    const [formData, setFormData] = useState({
+        quotationNumber: '',
+        quotationDate: new Date().toISOString().substring(0, 10),
         projectId: '',
-        // Client details must be explicitly cleared when project is deselected
+        
+        quotationFrom: '',
+        gstFrom: '',
+        addressFrom: '',
+        contactNumberFrom: '',
+
         quotationTo: '',
-        quotationToName: '', gstTo: '', addressTo: '', phoneTo: '',
-        materials: [], manpowers: [], expenditures: [], totalAmount: 0
-      }));
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const selectedProject = projects.find(p => p && p._id === projectId);
-      // Client is usually linked via the project object.
-      // Use the client ID nested under `selectedProject.client?._id`
-      const client = clients.find(c => c && c._id === selectedProject?.client?._id);
-
-      // 1. Get Token
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Authentication failed. Please log in.');
-        setLoading(false);
-        return;
-      }
-
-      // --- Fetch Actual Project Data ---
-      // 2. Fetch ALL Expenditures (Salary & Other)
-      const allExpenditureResponse = await fetch(`${API_BASE_URL}/expenditures?projectId=${projectId}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const fetchedExpenditures = allExpenditureResponse.ok ? await allExpenditureResponse.json() : [];
-
-      // 3. Fetch Actual Materials 
-      const fetchedMaterials = await fetchActualMaterialExpenditures(projectId, token);
-      // ---------------------------------
-
-      // 4. Map Actual Expenses to structure
-      const actualItems = {};
-
-      actualItems.manpowers = fetchedExpenditures
-        .filter(item => item.expenditureType === 'Salary')
-        .map(item => ({
-          manpowerName: item.manpowerName || 'N/A',
-          role: item.description || 'N/A',
-          amount: parseFloat(item.amount || 0)
-        }));
-
-      actualItems.expenditures = fetchedExpenditures
-        .filter(item => item.expenditureType === 'Other')
-        .map(item => ({
-          expenditureName: item.expenditureName || 'N/A',
-          description: item.description || 'N/A',
-          amount: parseFloat(item.amount || 0)
-        }));
-
-      actualItems.materials = fetchedMaterials;
-
-
-      // 5. Build the new form data by overwriting old project-specific fields
-      setFormData(prevData => {
-
-        // Client Details to be updated
-        const updatedClientDetails = client ? {
-          quotationTo: client._id,
-          quotationToName: client.clientName || '',
-          gstTo: selectedProject?.gst || '', // Use project GST if applicable
-          addressTo: client.address || '',
-          phoneTo: client.phoneNumber || client.phone || '',
-        } : {
-          quotationTo: '',
-          quotationToName: '',
-          gstTo: '',
-          addressTo: '',
-          phoneTo: '',
-        };
-
-        const newFormData = {
-          ...prevData,
-          projectId: projectId,
-          ...updatedClientDetails,
-          // Load the newly fetched actual items
-          materials: actualItems.materials,
-          manpowers: actualItems.manpowers,
-          expenditures: actualItems.expenditures,
-        };
-
-        // 6. Recalculate Total
-        newFormData.totalAmount = updateCalculations(newFormData);
-
-        return newFormData;
-      });
-
-    } catch (error) {
-      console.error('Failed to get data for the project:', error);
-      toast.error('Could not load project data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [projects, clients, profile, updateCalculations]);
-
-  const handleItemChange = useCallback((category, index, e) => {
-    // ... (Your handleItemChange code remains here, unchanged)
-    const { name, value, type } = e.target;
-    setFormData(prevData => {
-      const updatedItems = [...(prevData[category] || [])];
-
-      let finalValue = value;
-      // Convert number inputs to actual numbers or 0
-      if (type === 'number') {
-        finalValue = value === '' ? 0 : value;
-      }
-
-      const updatedItem = { ...updatedItems[index], [name]: finalValue };
-      updatedItems[index] = updatedItem;
-
-      const newData = { ...prevData, [category]: updatedItems };
-      return { ...newData, totalAmount: updateCalculations(newData) };
+        quotationToName: '',
+        addressTo: '',
+        phoneTo: '',
+        gstTo: '',
+        
+        dueDate: '',
+        signedDate: '',
+        termsAndConditions: '1. Goods once sold cannot be taken back.\n2. Payment due within 15 days.',
+        
+        totalAmount: 0,
     });
-  }, [updateCalculations]);
 
-  const handleAddItem = useCallback((category) => {
-    // ... (Your handleAddItem code remains here, unchanged)
-    setFormData(prevData => {
-      let newItem = {};
-      switch (category) {
-        case 'materials':
-          newItem = { materialName: '', quantity: 0, unit: 'Nos', amount: 0, gst: 0 };
-          break;
-        case 'manpowers':
-          newItem = { manpowerName: '', role: '', amount: 0 };
-          break;
-        case 'expenditures':
-          newItem = { expenditureName: '', description: '', amount: 0 };
-          break;
-        default:
-          return prevData;
-      }
-      const updatedItems = [...(prevData[category] || []), newItem];
-      const newData = { ...prevData, [category]: updatedItems };
-      return { ...newData, totalAmount: updateCalculations(newData) };
-    });
-  }, [updateCalculations]);
+    const [items, setItems] = useState([
+        { id: Date.now(), name: '', unit: '', gstRate: 18, quantity: 1, rate: 0, amount: 0, cgst: 0, sgst: 0, total: 0 }
+    ]);
 
-  const handleRemoveItem = useCallback((category, index) => {
-    // ... (Your handleRemoveItem code remains here, unchanged)
-    setFormData(prevData => {
-      const updatedItems = (prevData[category] || []).filter((_, i) => i !== index);
-      const newData = { ...prevData, [category]: updatedItems };
-      return { ...newData, totalAmount: updateCalculations(newData) };
-    });
-  }, [updateCalculations]);
-
-  const handleShowDeleteModal = () => {
-    if (id) {
-      setShowDeleteModal(true);
-    }
-  };
-
-  const handleCloseDeleteModal = () => {
-    setShowDeleteModal(false);
-  };
-
-  const handleDelete = async () => {
-    // ... (Your handleDelete code remains here, unchanged)
-    setIsSaving(true);
-    handleCloseDeleteModal();
-    const token = localStorage.getItem('token');
-    if (!token) {
-      toast.error('Authentication failed. Please log in.');
-      navigate('/login');
-      setIsSaving(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/quotations/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete quotation.');
-      }
-
-      toast.success('Quotation successfully deleted.');
-      navigate('/quotations');
-    } catch (error) {
-      console.error('Failed to delete quotation:', error);
-      toast.error(`Failed to delete quotation: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    navigate(-1);
-  };
-
-  /**
-   * Formats the form data for the backend API, specifically combining manpowers and
-   * expenditures back into a single 'expenditures' array with a type field.
-   */
-  const formatDataForBackend = (data) => {
-    // formattedData-வை 'let' ஆக அமைத்து, அதன் நகலை எடுத்துக்கொள்கிறோம்.
-    let formattedData = { ...data };
-
-    // --- ID மற்றும் Profile தகவலைப் பிரித்தெடுத்தல் ---
-    // 'profile' State-இன் உள்ளே உள்ள profile object-ஐப் பிரித்தெடுக்கிறது.
-    const userProfile = profile.profile || profile;
-    const profileId = userProfile._id;
-    const clientId = data.quotationTo;
-
-    // 🎯 CRITICAL FIX: Fallback Logic
-    // companyName, GST, Address போன்றவற்றை formData-இல் இருந்தோ அல்லது profile-இல் இருந்தோ பெறுகிறது.
-    const companyName = data.quotationFrom || userProfile.companyName || '';
-    const gst = data.gstFrom || userProfile.gst || '';
-    const address = data.addressFrom || userProfile.address || '';
-    const contactNumber = data.contactNumberFrom || userProfile.contactNumber || '';
-
-    // --- Items-ஐப் புதுப்பித்தல் மற்றும் ஒன்றிணைத்தல் (Expenditures) ---
-    const combinedExpenditures = [
-      ...(formattedData.manpowers || []).map(item => ({
-        expenditureName: item.manpowerName,
-        role: item.role,
-        amount: parseFloat(item.amount) || 0,
-        expenditureType: 'Salary',
-      })),
-      ...(formattedData.expenditures || []).map(item => ({
-        expenditureName: item.expenditureName,
-        description: item.description,
-        amount: parseFloat(item.amount) || 0,
-        expenditureType: 'Other',
-      }))
-    ];
-
-    // Manpowers/Expenditures-ஐ நீக்கி, combinedExpenditures-ஐச் சேர்த்தல்
-    delete formattedData.manpowers;
-    delete formattedData.expenditures;
-    formattedData.expenditures = combinedExpenditures;
-
-    // Materials: Number Conversion
-    formattedData.materials = (formattedData.materials || []).map(item => ({
-      ...item,
-      quantity: parseFloat(item.quantity) || 0,
-      amount: parseFloat(item.amount) || 0,
-      gst: parseFloat(item.gst) || 0,
-    }));
-
-    // Ensure all top-level numbers are correct, especially the totalAmount
-    formattedData.totalAmount = updateCalculations(formattedData);
-
-    // --- Redundant Top-Level Fields-ஐ நீக்குதல் (மிக முக்கியம்) ---
-    // இந்த Fields-ஐ Nested Objects-ஆக மாற்றியதால், Top-Level-இல் இருந்து நீக்க வேண்டும்.
-    delete formattedData.quotationFrom;
-    delete formattedData.gstFrom;
-    delete formattedData.addressFrom;
-    delete formattedData.contactNumberFrom;
-    delete formattedData.quotationTo;
-    delete formattedData.quotationToName;
-    delete formattedData.gstTo;
-    delete formattedData.addressTo;
-    delete formattedData.contactNumberTo;
-
-    // --- Final Data Structure for Backend ---
-    return {
-      ...formattedData,
-
-      // 🎯 FIX: Fallback மதிப்புகளைப் பயன்படுத்துதல்
-      quotationFrom: {
-        companyName: companyName, // 👈 இனி இது காலியாக இருக்காது
-        gst: gst,
-        address: address,
-        contactNumber: contactNumber,
-        profileId: profileId
-      },
-
-      // quotationTo லாஜிக் (மாறவில்லை)
-      quotationTo: {
-        clientId: clientId,
-        name: data.quotationToName || '',
-        gst: data.gstTo || '',
-        address: data.addressTo || '',
-        contactNumber: data.contactNumberTo || '',
-      },
-
-      // Ensure date formats are correct for backend (ISO String)
-      quotationDate: new Date(data.quotationDate).toISOString(),
-      dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined,
-      logo: data.logo || '',
-      signedDate: data.signedDate ? new Date(data.signedDate).toISOString() : undefined,
-      signature: data.signature ? data.signature : undefined,
+    const safeFixed = (num, decimals = 2) => {
+        const val = parseFloat(num);
+        return isNaN(val) ? '0.00' : val.toFixed(decimals);
     };
-  };
-  // QuotationForm Component-இன் உள்ளே உள்ள handleSave ஃபங்ஷன்:
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setIsSaving(true);
+    const calculations = useMemo(() => {
+        const subTotal = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        const totalCGST = items.reduce((sum, item) => sum + (parseFloat(item.cgst) || 0), 0);
+        const totalSGST = items.reduce((sum, item) => sum + (parseFloat(item.sgst) || 0), 0);
+        const grandTotal = items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
 
-    if (!formData.projectId) {
-      toast.error('Please select a project before saving.');
-      setIsSaving(false);
-      return;
-    }
+        return { subTotal, totalGST: totalCGST + totalSGST, grandTotal };
+    }, [items]);
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      toast.error('Authentication failed. Please log in.');
-      navigate('/login');
-      setIsSaving(false);
-      return;
-    }
+    useEffect(() => {
+        const initData = async () => {
+            setIsLoading(true);
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) throw new Error('Authentication token not found.');
+                const headers = { 'Authorization': `Bearer ${token}` };
 
-    // 🎯 CRITICAL FIX: Edit செய்யப்பட வேண்டிய Quotation ID-ஐக் கண்டறிதல்.
-    // URL-இல் இருந்து ID (id) அல்லது initialData-வில் இருந்து ID (Modal வழியே வந்தால்)
-    let quotationId = id;
-    if (!quotationId && initialData && initialData._id) {
-      quotationId = initialData._id;
-    }
+                const [projectsRes, clientsRes, profileRes] = await Promise.allSettled([
+                    fetch(`${API_BASE_URL}/projects`, { headers }),
+                    fetch(`${API_BASE_URL}/clients`, { headers }),
+                    fetch(`${API_BASE_URL}/users/profile`, { headers }),
+                ]);
 
-    const isEditing = !!quotationId;
-    const method = isEditing ? 'PUT' : 'POST';
-    // URL-ஐ அமைக்க, இப்போது கண்டறியப்பட்ட quotationId-ஐப் பயன்படுத்துகிறோம்.
-    const url = isEditing ? `${API_BASE_URL}/quotations/${quotationId}` : `${API_BASE_URL}/quotations`;
+                if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) setProjects(await projectsRes.value.json());
+                if (clientsRes.status === 'fulfilled' && clientsRes.value.ok) setClients(await clientsRes.value.json());
+                
+                let profileData = null;
+                if (profileRes.status === 'fulfilled' && profileRes.value.ok) {
+                    const rawProfile = await profileRes.value.json();
+                    profileData = rawProfile.profile || rawProfile;
+                    setProfile(profileData);
+                    if (profileData._id) localStorage.setItem('profileId', profileData._id);
+                }
 
-    // Backend-க்கு அனுப்ப வேண்டிய தரவை வடிவமைத்தல் (உங்கள் formatDataForBackend ஃபங்ஷன் மூலமாக)
-    const dataToSend = formatDataForBackend(formData);
+                let dataToLoad = null;
+                if (initialData) {
+                    dataToLoad = initialData;
+                } else if (currentId) {
+                    const res = await fetch(`${API_BASE_URL}/quotations/${currentId}`, { headers });
+                    if (res.ok) dataToLoad = await res.json();
+                }
 
-    try {
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(dataToSend),
-      });
+                if (dataToLoad) {
+                    const projId = dataToLoad.projectId?._id || dataToLoad.projectId || '';
+                    const clientId = dataToLoad.quotationTo?._id || dataToLoad.quotationTo?.clientId || dataToLoad.quotationTo || '';
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save quotation.');
-      }
+                    setFormData({
+                        quotationNumber: dataToLoad.quotationNumber || '',
+                        quotationDate: dataToLoad.quotationDate ? dataToLoad.quotationDate.substring(0, 10) : '',
+                        projectId: projId,
 
-      const result = await response.json();
-      toast.success(`Quotation successfully ${isEditing ? 'updated' : 'saved'}.`);
+                        quotationFrom: dataToLoad.quotationFrom?.companyName || dataToLoad.quotationFrom || '',
+                        gstFrom: dataToLoad.quotationFrom?.gst || dataToLoad.gstFrom || '',
+                        addressFrom: dataToLoad.quotationFrom?.address || dataToLoad.addressFrom || '',
+                        contactNumberFrom: dataToLoad.quotationFrom?.contactNumber || dataToLoad.contactNumberFrom || '',
 
-      // QuotationList-இல் உள்ள Modal-ஐ மூடி, பட்டியலைப் புதுப்பிக்க (handleFormClose)
-      if (onSubmit) {
-        onSubmit(result);
-      } else {
-        // URL வழியே வந்திருந்தால், புதுப்பிக்கப்பட்ட Quotation-க்கு navigate செய்க.
-        navigate(`/quotations/edit/${result._id || quotationId}`, { replace: true });
-      }
-    } catch (error) {
-      console.error('Failed to save quotation:', error);
-      toast.error(`Failed to save quotation: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+                        quotationTo: clientId,
+                        quotationToName: dataToLoad.quotationTo?.name || dataToLoad.quotationToName || '',
+                        addressTo: dataToLoad.quotationTo?.address || dataToLoad.addressTo || '',
+                        phoneTo: dataToLoad.quotationTo?.contactNumber || dataToLoad.phoneTo || '',
+                        gstTo: dataToLoad.quotationTo?.gst || dataToLoad.gstTo || '',
 
-  return (
-    <div className="max-w-5xl mx-auto p-6 bg-white rounded-3xl shadow-2xl font-sans text-gray-800 my-8 border-t-8 border-blue-600">
-      <Toaster position="top-center" />
-      <h3 className="text-3xl font-extrabold text-gray-900 mb-6 border-b-4 border-gray-200 pb-4">
-        {formTitle}
-      </h3>
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 size={48} className="animate-spin text-blue-500" />
-        </div>
-      ) : (
-        <form onSubmit={handleSave} className="space-y-8">
-          {/* Basic Details Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-xl shadow-inner">
-            <div className="flex flex-col">
-              <label htmlFor="projectId" className="mb-1 text-sm font-semibold text-gray-700">selected Project <span className="text-red-500">*</span></label>
-              <select
-                id="projectId"
-                name="projectId"
-                value={formData.projectId}
-                onChange={handleProjectChange}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
-              >
-                <option value="">Select a project</option>
-                {projects.map(project => (
-                  <option key={project._id} value={project._id}>{project.projectName}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label htmlFor="quotationToName" className="mb-1 text-sm font-semibold text-gray-700">Quotation Name</label>
-              <input type="text" value={formData.quotationToName} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-            </div>
-            <div className="flex flex-col">
-              <label htmlFor="quotationDate" className="mb-1 text-sm font-semibold text-gray-700">Quotation Date</label>
-              <input
-                type="date"
-                id="quotationDate"
-                name="quotationDate"
-                value={formData.quotationDate}
-                onChange={handleChange}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
-              />
-            </div>
-            <div className="flex flex-col">
-              <label htmlFor="dueDate" className="mb-1 text-sm font-semibold text-gray-700">Due Date</label>
-              <input
-                type="date"
-                id="dueDate"
-                name="dueDate"
-                value={formData.dueDate}
-                onChange={handleChange}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus-ring-blue-500 transition-shadow duration-200"
-              />
-            </div>
-            {/* <div className='flex flex-col'>
-              <label htmlFor='logo' className='mb-1 text-sm font-semibold text-gray-700'>Logo URL</label>
-              <input
-                type='file'
-                id='logo'
-                name='logo'
-                value={formData.logo}
-                onChange={handleChange}
-                className='px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200'
-                placeholder='Enter logo URL'
-              />
-            </div> */}
-            <div className="flex flex-col md:col-span-2">
-              <label htmlFor="quotationNumber" className="mb-1 text-sm font-semibold text-gray-700">Quotation No</label>
-              <input
-                type="text"
-                id="quotationNumber"
-                name="quotationNumber"
-                value={formData.quotationNumber}
-                onChange={handleChange}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
-                placeholder="e.g., INV-001"
-              />
-            </div>
-          </div>
+                        dueDate: dataToLoad.dueDate ? dataToLoad.dueDate.substring(0, 10) : '',
+                        signedDate: dataToLoad.signedDate ? dataToLoad.signedDate.substring(0, 10) : '',
+                        termsAndConditions: dataToLoad.termsAndConditions || '',
+                    });
 
+                    if (dataToLoad.items && dataToLoad.items.length > 0) {
+                        setItems(dataToLoad.items.map(item => ({
+                            ...item,
+                            name: item.Name || item.name || '',
+                            amount: parseFloat(item.amount || item.lineAmount || 0),
+                            cgst: parseFloat(item.cgst || 0),
+                            sgst: parseFloat(item.sgst || 0),
+                            total: parseFloat(item.total || item.lineTotal || 0),
+                            id: item._id || Date.now() + Math.random()
+                        })));
+                    }
+                } else if (profileData) {
+                    setFormData(prev => ({
+                        ...prev,
+                        quotationFrom: profileData.companyName || profileData.username || '',
+                        gstFrom: profileData.gst || profileData.gstNumber || '',
+                        addressFrom: profileData.address || '',
+                        contactNumberFrom: profileData.contactNumber || profileData.phoneNumber || '',
+                    }));
+                }
 
-          {/* From & To Details Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* From Details */}
-            <div className="bg-blue-50 p-6 rounded-xl shadow-md space-y-4">
-              <h4 className="text-xl font-bold text-blue-800">From Quotation</h4>
-              {Object.keys(profile).length === 0 ? (
-                <p className="text-sm text-red-500">
-                  Profile data not available. Please ensure your user profile is set up.
-                </p>
-              ) : (
-                <>
-                  <div className="flex flex-col">
-                    <label className="mb-1 text-sm font-medium text-gray-700">Company Name</label>
-                    <input type="text" name='quotationFrom' value={formData.quotationFrom} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="mb-1 text-sm font-medium text-gray-700">GST No</label>
-                    <input type="text" value={formData.gstFrom} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="mb-1 text-sm font-medium text-gray-700">Address</label>
-                    <input type="text" value={formData.addressFrom} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="mb-1 text-sm font-medium text-gray-700">phone Number</label>
-                    <input type="text" value={formData.contactNumberFrom} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-                  </div>
-                </>
-              )}
-            </div>
+            } catch (err) {
+                console.error(err);
+                toast.error("Failed to load data.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-            {/* To Details */}
-            <div className="bg-green-50 p-6 rounded-xl shadow-md space-y-4">
-              <h4 className="text-xl font-bold text-green-800">To Quotation</h4>
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-gray-700">Client Name</label>
-                <input type="text" value={formData.quotationToName} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-              </div>
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-gray-700">GST No</label>
-                <input type="text" value={formData.gstTo} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-              </div>
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-gray-700">Address</label>
-                <input type="text" value={formData.addressTo} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-              </div>
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-gray-700">Phone Number</label>
-                <input type="text" value={formData.phoneTo} readOnly className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed" />
-              </div>
-            </div>
-          </div>
+        initData();
+    }, [currentId, initialData]);
 
-          {/* Materials Section */}
-          <QuotationTable
-            category="materials"
-            items={formData.materials}
-            handleItemChange={handleItemChange}
-            handleAddItem={handleAddItem}
-            handleRemoveItem={handleRemoveItem}
-          />
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
-          {/* Manpower Section */}
-          <QuotationTable
-            category="manpowers"
-            items={formData.manpowers}
-            handleItemChange={handleItemChange}
-            handleAddItem={handleAddItem}
-            handleRemoveItem={handleRemoveItem}
-          />
+    const handleClientChange = (e) => {
+        const selectedClientId = e.target.value;
+        const client = clients.find(c => c._id === selectedClientId);
 
-          {/* Expenditures Section */}
-          <QuotationTable
-            category="expenditures"
-            items={formData.expenditures}
-            handleItemChange={handleItemChange}
-            handleAddItem={handleAddItem}
-            handleRemoveItem={handleRemoveItem}
-          />
+        setFormData(prev => ({
+            ...prev,
+            quotationTo: selectedClientId,
+            quotationToName: client ? (client.clientName || client.name) : '',
+            addressTo: client ? client.address : '',
+            phoneTo: client ? (client.phoneNumber || client.contactNumber) : '',
+            gstTo: client ? client.gstNo : '',
+        }));
+    };
 
-          {/* Terms & Conditions and Signed Date */}
-          <div className="space-y-4">
-            <div className="flex flex-col">
-              <label htmlFor="termsAndConditions" className="mb-1 text-sm font-semibold text-gray-700">Terms and Conditions</label>
-              <textarea
-                id="termsAndConditions"
-                name="termsAndConditions"
-                value={formData.termsAndConditions}
-                onChange={handleChange}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200 h-32"
-                placeholder="Enter any terms and conditions here..."
-              />
-            </div>
-            <div className="flex flex-col">
-              <label htmlFor="signedDate" className="mb-1 text-sm font-semibold text-gray-700">Signed Date</label>
-              <input
-                type="date"
-                id="signedDate"
-                name="signedDate"
-                value={formData.signedDate}
-                onChange={handleChange}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200"
-              />
-            </div>
-            {/* <div className='flex flex-col'>
-              <label htmlFor='signature' className='mb-1 text-sm font-semibold text-gray-700'>Signature URL</label>
-              <input
-                type='file'
-                id='signature'
-                name='signature'
-                value={formData.signature}
-                onChange={handleChange}
-                className='px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow duration-200'
-              />
-            </div> */}
-          </div>
+    const handleProjectChange = (e) => setFormData(prev => ({ ...prev, projectId: e.target.value }));
 
-          {/* Total Amount & Buttons */}
-          <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 mt-8">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold text-gray-900">Total Amount:</span>
-              <span className="text-3xl font-extrabold text-blue-600">₹{formData.totalAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* Cancel Button - now working correctly with `Maps(-1)` */}
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-6 py-3 bg-red-100 text-red-600 rounded-full shadow-sm hover:bg-red-200 transition-colors duration-200 flex items-center justify-center gap-2 font-medium"
-                disabled={isSaving}
-              >
-                <Ban size={20} />
-                Cancel
-              </button>
+    const calculateRow = (item) => {
+        const quantity = parseFloat(item.quantity) || 0;
+        const rate = parseFloat(item.rate) || 0;
+        const gstPercent = parseFloat(item.gstRate) || 0;
 
-              {/* Delete Button (only shown for existing quotations) */}
-              {id && (
-                <button
-                  type="button"
-                  onClick={handleShowDeleteModal}
-                  className="px-6 py-3 bg-gray-100 text-gray-600 rounded-full shadow-sm hover:bg-gray-200 transition-colors duration-200 flex items-center justify-center gap-2 font-medium"
-                  disabled={isSaving}
-                >
-                  <Trash2 size={20} />
-                  Delete
-                </button>
-              )}
+        const amount = quantity * rate;
+        const totalGSTAmount = (amount * gstPercent) / 100;
+        const total = amount + totalGSTAmount;
 
-              {/* Save Button */}
-              <button
-                type="submit"
-                className="px-6 py-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-2 font-semibold"
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save size={20} />
-                    {submitButtonText || (id ? 'Update' : 'Save')}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
+        return { ...item, amount, cgst: totalGSTAmount / 2, sgst: totalGSTAmount / 2, total };
+    };
 
-      {/* Delete Confirmation Modal - fixed to use proper component state */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center z-50">
-          <div className="bg-white p-8 rounded-lg shadow-xl max-w-sm mx-auto relative transform transition-all scale-100">
+    const handleItemChange = (id, field, value) => {
+        setItems(prev => prev.map(item => {
+            if (item.id === id) {
+                return calculateRow({ ...item, [field]: value });
+            }
+            return item;
+        }));
+    };
+
+    const addItem = () => {
+        const defaultGst = profile?.defaultGstRate || 18;
+        setItems([...items, { id: Date.now(), name: '', unit: '', gstRate: defaultGst, quantity: 1, rate: 0, amount: 0, cgst: 0, sgst: 0, total: 0 }]);
+    };
+
+    const deleteItem = (id) => items.length > 1 ? setItems(items.filter(i => i.id !== id)) : toast.error("At least one item required.");
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+
+        if (!formData.projectId) return toast.error("Please select a Project.");
+        if (!formData.quotationTo) return toast.error("Please select a Client.");
+        
+        const validItems = items.filter(i => i.name && i.total > 0);
+        if (validItems.length === 0) return toast.error("Please check items (Name required, Amount > 0).");
+
+        let profileId = profile?._id || localStorage.getItem('profileId') || localStorage.getItem('userId');
+        
+        setIsSaving(true);
+
+        const mappedItems = validItems.map(item => ({
+            Name: item.name,
+            unit: item.unit,
+            gstRate: parseFloat(item.gstRate) || 0,
+            quantity: parseFloat(item.quantity) || 0,
+            rate: parseFloat(item.rate) || 0,
+            amount: parseFloat(item.amount) || 0,
+            cgst: parseFloat(item.cgst) || 0,
+            sgst: parseFloat(item.sgst) || 0,
+            total: parseFloat(item.total) || 0
+        }));
+
+        const payload = {
+            quotationNumber: formData.quotationNumber,
+            quotationDate: formData.quotationDate,
+            projectId: formData.projectId,
+            quotationFrom: {
+                companyName: formData.quotationFrom,
+                gst: formData.gstFrom,
+                address: formData.addressFrom,
+                contactNumber: formData.contactNumberFrom,
+                profileId: profileId
+            },
+            quotationTo: {
+                clientId: formData.quotationTo,
+                name: formData.quotationToName,
+                address: formData.addressTo,
+                phone: formData.phoneTo,
+                gst: formData.gstTo
+            },
+            items: mappedItems,
+            subTotal: calculations.subTotal,
+            totalCGST: items.reduce((sum, item) => sum + (item.cgst || 0), 0),
+            totalSGST: items.reduce((sum, item) => sum + (item.sgst || 0), 0),
+            grandTotal: calculations.grandTotal,
+            dueDate: formData.dueDate,
+            signedDate: formData.signedDate,
+            termsAndConditions: formData.termsAndConditions,
+        };
+
+        try {
+            const token = localStorage.getItem('token');
+            const url = currentId ? `${API_BASE_URL}/quotations/${currentId}` : `${API_BASE_URL}/quotations`;
+            const method = currentId ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Server Error: ${response.statusText}`);
+            }
+
+            toast.success(`Quotation ${currentId ? 'updated' : 'created'} successfully!`);
+            
+            setTimeout(() => {
+                if (onClose) onClose();
+                else navigate('/quotation');
+            }, 1000);
+
+        } catch (error) {
+            console.error("Save Error:", error);
+            toast.error(error.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCancel = () => {
+        if (onClose) onClose();
+        else navigate('/quotation');
+    };
+
+    if (isLoading) return (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                <Trash2 size={24} className="text-red-600" />
-              </div>
-              <h3 className="mt-4 text-xl leading-6 font-medium text-gray-900">Delete Quotation</h3>
-              <div className="mt-2 px-7 py-3">
-                <p className="text-sm text-gray-500">
-                  Are you sure you want to delete this quotation? This action cannot be undone.
-                </p>
-              </div>
-              <div className="mt-5 sm:mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-medium hover:bg-gray-300 transition-colors"
-                  onClick={handleCloseDeleteModal}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 transition-colors"
-                  onClick={handleDelete}
-                >
-                  Delete
-                </button>
-              </div>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600 text-lg font-medium">Loading Quotation Form...</p>
+                <p className="text-gray-500 text-sm">Preparing your business document</p>
             </div>
-          </div>
         </div>
-      )}
-    </div>
-  );
+    );
+
+    return (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <Toaster position="top-right" />
+            
+            {/* Main Container - Fixed Size with Scroll */}
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden">
+                {/* Fixed Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 flex-shrink-0">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                                <FileText className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold">
+                                    {currentId ? 'Edit Quotation' : 'Create New Quotation'}
+                                </h1>
+                                <p className="text-blue-100 text-sm mt-1">
+                                    {currentId ? 'Update your business quotation' : 'Create a professional business quotation'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                            <div className="hidden md:block bg-white/20 backdrop-blur-sm rounded-xl p-2">
+                                <Calculator className="w-5 h-5" />
+                            </div>
+                            <button 
+                                onClick={handleCancel}
+                                className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors duration-200"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Scrollable Content Area */}
+                <div className="flex-1 overflow-y-auto">
+                    <form onSubmit={handleSave} className="p-6 space-y-6">
+                        {/* Meta Information */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <Hash className="w-4 h-4 mr-2 text-blue-500" />
+                                    Quotation No
+                                </label>
+                                <input 
+                                    type="text" 
+                                    name="quotationNumber" 
+                                    value={formData.quotationNumber} 
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+                                    placeholder="QTN-001" 
+                                />
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <Calendar className="w-4 h-4 mr-2 text-green-500" />
+                                    Quotation Date
+                                </label>
+                                <input 
+                                    type="date" 
+                                    name="quotationDate" 
+                                    value={formData.quotationDate} 
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                                />
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                                    Due Date
+                                </label>
+                                <input 
+                                    type="date" 
+                                    name="dueDate" 
+                                    value={formData.dueDate} 
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 bg-white"
+                                />
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <Building className="w-4 h-4 mr-2 text-purple-500" />
+                                    Project *
+                                </label>
+                                <select 
+                                    name="projectId" 
+                                    value={formData.projectId} 
+                                    onChange={handleProjectChange}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
+                                    required
+                                >
+                                    <option value="">-- Select Project --</option>
+                                    {projects.map(p => (
+                                        <option key={p._id} value={p._id}>{p.projectName}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* From & To Sections */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* From Section */}
+                            <div className="bg-gradient-to-br from-emerald-50 to-green-100 p-4 rounded-xl border border-emerald-200">
+                                <h3 className="text-lg font-bold text-emerald-800 mb-3 flex items-center">
+                                    <Building className="w-5 h-5 mr-2" />
+                                    From Details
+                                </h3>
+                                <div className="space-y-3">
+                                    <input 
+                                        name="quotationFrom" 
+                                        value={formData.quotationFrom} 
+                                        onChange={handleChange}
+                                        className="w-full px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                                        placeholder="Company Name" 
+                                    />
+                                    <input 
+                                        name="gstFrom" 
+                                        value={formData.gstFrom} 
+                                        onChange={handleChange}
+                                        className="w-full px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                                        placeholder="GST Number" 
+                                    />
+                                    <textarea 
+                                        name="addressFrom" 
+                                        value={formData.addressFrom} 
+                                        onChange={handleChange}
+                                        rows="2"
+                                        className="w-full px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                                        placeholder="Company Address"
+                                    ></textarea>
+                                    <input 
+                                        name="contactNumberFrom" 
+                                        value={formData.contactNumberFrom} 
+                                        onChange={handleChange}
+                                        className="w-full px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                                        placeholder="Contact Number" 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* To Section */}
+                            <div className="bg-gradient-to-br from-blue-50 to-cyan-100 p-4 rounded-xl border border-blue-200">
+                                <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center">
+                                    <User className="w-5 h-5 mr-2" />
+                                    Client Details *
+                                </h3>
+                                <div className="space-y-3">
+                                    <select 
+                                        name="quotationTo" 
+                                        value={formData.quotationTo} 
+                                        onChange={handleClientChange}
+                                        className="w-full px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        required
+                                    >
+                                        <option value="">-- Select Client --</option>
+                                        {clients.map(c => (
+                                            <option key={c._id} value={c._id}>{c.clientName}</option>
+                                        ))}
+                                    </select>
+                                    <input 
+                                        name="quotationToName" 
+                                        value={formData.quotationToName} 
+                                        onChange={handleChange}
+                                        className="w-full px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        placeholder="Client Name" 
+                                    />
+                                    <textarea 
+                                        name="addressTo" 
+                                        value={formData.addressTo} 
+                                        onChange={handleChange}
+                                        rows="2"
+                                        className="w-full px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        placeholder="Client Address"
+                                    ></textarea>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input 
+                                            name="phoneTo" 
+                                            value={formData.phoneTo} 
+                                            onChange={handleChange}
+                                            className="px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                            placeholder="Phone" 
+                                        />
+                                        <input 
+                                            name="gstTo" 
+                                            value={formData.gstTo} 
+                                            onChange={handleChange}
+                                            className="px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                            placeholder="GST No" 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Items Section */}
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-200">
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                    <Package className="w-5 h-5 mr-2 text-purple-500" />
+                                    Items & Services
+                                </h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[800px]">
+                                    <thead className="bg-gray-50">
+                                        <tr className="text-left text-xs font-semibold text-gray-700">
+                                            <th className="px-4 py-3">Item Description</th>
+                                            <th className="px-2 py-3 text-center w-20">Unit</th>
+                                            <th className="px-2 py-3 text-center w-16">
+                                                <div className="flex items-center justify-center">
+                                                    <Percent className="w-3 h-3 mr-1" />
+                                                    GST%
+                                                </div>
+                                            </th>
+                                            <th className="px-2 py-3 text-center w-16">Qty</th>
+                                            <th className="px-2 py-3 text-right w-24">Rate (₹)</th>
+                                            <th className="px-4 py-3 text-right w-28">Amount (₹)</th>
+                                            <th className="px-4 py-3 text-right w-28">Total (₹)</th>
+                                            <th className="px-2 py-3 text-center w-16">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {items.map((item) => (
+                                            <tr key={item.id} className="hover:bg-blue-50/30 transition-colors duration-150">
+                                                <td className="px-4 py-3">
+                                                    <input 
+                                                        value={item.name} 
+                                                        onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
+                                                        placeholder="Item description"
+                                                        required 
+                                                    />
+                                                </td>
+                                                <td className="px-2 py-3">
+                                                    <input 
+                                                        value={item.unit} 
+                                                        onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center bg-white text-sm"
+                                                        placeholder="Nos" 
+                                                    />
+                                                </td>
+                                                <td className="px-2 py-3">
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.gstRate} 
+                                                        onChange={(e) => handleItemChange(item.id, 'gstRate', e.target.value)}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center bg-white text-sm"
+                                                    />
+                                                </td>
+                                                <td className="px-2 py-3">
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.quantity} 
+                                                        onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center bg-white text-sm"
+                                                        required 
+                                                    />
+                                                </td>
+                                                <td className="px-2 py-3">
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.rate} 
+                                                        onChange={(e) => handleItemChange(item.id, 'rate', e.target.value)}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-right bg-white text-sm"
+                                                        required 
+                                                    />
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-semibold text-gray-700 text-sm">
+                                                    ₹{safeFixed(item.amount)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-bold text-green-600 text-sm">
+                                                    ₹{safeFixed(item.total)}
+                                                </td>
+                                                <td className="px-2 py-3 text-center">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => deleteItem(item.id)}
+                                                        className="p-1 text-red-500 hover:bg-red-100 rounded transition-colors duration-200"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="px-4 py-3 border-t border-gray-200">
+                                <button 
+                                    type="button" 
+                                    onClick={addItem}
+                                    className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-semibold text-sm"
+                                >
+                                    <Plus size={16} />
+                                    <span>Add New Item</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Summary & Terms */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Terms & Conditions */}
+                            <div className="lg:col-span-2 space-y-3">
+                                <label className="block text-sm font-semibold text-gray-700">
+                                    Terms & Conditions
+                                </label>
+                                <textarea 
+                                    name="termsAndConditions" 
+                                    value={formData.termsAndConditions} 
+                                    onChange={handleChange}
+                                    rows="3"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                ></textarea>
+                            </div>
+
+                            {/* Cost Summary */}
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-xl border border-blue-200">
+                                <h4 className="text-base font-bold text-gray-800 mb-3 flex items-center">
+                                    <Calculator className="w-4 h-4 mr-2 text-blue-600" />
+                                    Cost Summary
+                                </h4>
+                                
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600 text-sm">Subtotal:</span>
+                                        <span className="font-semibold text-gray-800">₹{safeFixed(calculations.subTotal)}</span>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600 text-sm">Total GST:</span>
+                                        <span className="font-semibold text-gray-800">₹{safeFixed(calculations.totalGST)}</span>
+                                    </div>
+
+                                    <div className="border-t border-gray-300 pt-2 mt-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-base font-bold text-gray-800">Grand Total:</span>
+                                            <span className="text-xl font-bold text-green-600 flex items-center">
+                                                <IndianRupee className="w-4 h-4 mr-1" />
+                                                {calculations.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons - Fixed at bottom of scrollable area */}
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-200">
+                            <button 
+                                type="button" 
+                                onClick={handleCancel}
+                                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 flex items-center space-x-2 font-medium text-sm"
+                            >
+                                <Ban className="w-4 h-4" />
+                                <span>Cancel</span>
+                            </button>
+                            
+                            <button 
+                                type="submit" 
+                                disabled={isSaving}
+                                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:transform-none flex items-center space-x-2 font-bold text-sm"
+                            >
+                                {isSaving ? (
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Save className="w-4 h-4" />
+                                )}
+                                <span>
+                                    {isSaving ? 'Saving...' : (currentId ? 'Update Quotation' : 'Create Quotation')}
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default QuotationForm;

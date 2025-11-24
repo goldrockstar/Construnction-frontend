@@ -5,12 +5,14 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const ManpowerForm = ({ manpower, onClose }) => {
     // மாநில நிர்வாகம் (State management)
     const [formData, setFormData] = useState({
+        empId: '',
         name: '',
         roleId: '', 
         roleName: '',
         phoneNumber: '',
         address: '',
-        description: '',
+        payRateType: '',
+        payRate: '',
         photo: null, // புதிய புகைப்பட கோப்பிற்கான பொருள் (File object)
     });
 
@@ -53,23 +55,27 @@ const ManpowerForm = ({ manpower, onClose }) => {
     useEffect(() => {
         if (manpower) {
             setFormData({
+                empId: manpower.empId || '',
                 name: manpower.name || '',
                 roleId: manpower.roleId ? manpower.roleId._id : '',
                 roleName: manpower.roleId ? manpower.roleId.name : '',
                 phoneNumber: manpower.phoneNumber || '',
                 address: manpower.address || '',
-                description: manpower.description || '',
+                payRateType: manpower.payRateType || '',
+                payRate: manpower.payRate || '',
                 photo: null, // திருத்தத்தின் போது கோப்புப் புலத்தை மீட்டமைக்கவும்
             });
         } else {
             // புதிய பதிவைச் சேர்ப்பதற்கான படிவத்தை மீட்டமைத்தல்
             setFormData({
+                empId: '',
                 name: '',
                 roleId: '',
                 roleName: '',
                 phoneNumber: '',
                 address: '',
-                description: '',
+                payRateType: '',
+                payRate: '',
                 photo: null,
             });
         }
@@ -114,12 +120,14 @@ const ManpowerForm = ({ manpower, onClose }) => {
         // FormData ஐப் பயன்படுத்தி கோப்பு மற்றும் பிற படிவத் தரவை ஒன்றாக அனுப்புதல்.
         // இந்த வடிவத்திற்கு, சர்வரில் 'multer' போன்ற ஒரு middleware தேவை.
         const dataToSend = new FormData();
+        dataToSend.append('empId', formData.empId);
         dataToSend.append('name', formData.name);
         dataToSend.append('roleId', formData.roleId);
         dataToSend.append('roleName', formData.roleName);
         dataToSend.append('phoneNumber', formData.phoneNumber);
         dataToSend.append('address', formData.address);
-        dataToSend.append('description', formData.description);
+        dataToSend.append('payRateType', formData.payRateType);
+        dataToSend.append('payRate', formData.payRate);
         
         // கோப்பு இருப்பின், அதை இணைக்கவும்
         if (formData.photo instanceof File) {
@@ -187,6 +195,19 @@ const ManpowerForm = ({ manpower, onClose }) => {
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex flex-col">
+                        <label htmlFor="empId" className="mb-1 text-sm font-medium text-gray-700">Employee ID <span className="text-red-500">*</span></label>
+                        <input
+                            type="text"
+                            id="empId"
+                            name="empId"
+                            value={formData.empId}
+                            onChange={handleChange}
+                            required
+                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="e.g., EMP001"
+                        />
+                    </div>
+                    <div className="flex flex-col">
                         <label htmlFor="name" className="mb-1 text-sm font-medium text-gray-700">Name <span className="text-red-500">*</span></label>
                         <input
                             type="text"
@@ -209,9 +230,9 @@ const ManpowerForm = ({ manpower, onClose }) => {
                             required
                             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                            <option value="" disabled>ரோலைத் தேர்ந்தெடுக்கவும்</option>
+                            <option value="" disabled>Select a role</option>
                             {loadingRoles ? (
-                                <option disabled>ஏற்றுகிறது...</option>
+                                <option disabled>Loading roles...</option>
                             ) : (
                                 rolesList.map((role) => (
                                     <option key={role._id} value={role._id}>{role.name}</option>
@@ -251,16 +272,34 @@ const ManpowerForm = ({ manpower, onClose }) => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex flex-col">
-                        <label htmlFor="description" className="mb-1 text-sm font-medium text-gray-700">Description</label>
-                        <textarea
-                            id="description"
-                            name="description"
-                            value={formData.description}
+                        <label htmlFor="payRateType" className="mb-1 text-sm font-medium text-gray-700">Pay Rate Type</label>
+                        <select
+                            id="payRateType"
+                            name="payRateType"
+                            value={formData.payRateType}
                             onChange={handleChange}
                             rows="2"
                             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            placeholder="Any additional notes"
-                        ></textarea>
+                            placeholder="e.g., Hourly, Daily"
+                        >
+                            <option value="Hourly">Hourly</option>
+                            <option value="Daily">Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div className="flex flex-col">
+                        <label htmlFor="payRate" className="mb-1 text-sm font-medium text-gray-700">Pay Rate</label>
+                        <input
+                            type="number"
+                            id="payRate"
+                            name="payRate"
+                            value={formData.payRate}
+                            onChange={handleChange}
+                            rows="2"
+                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="e.g., Salary Amount"
+                        />
                     </div>
                     <div className="flex flex-col">
                         <label htmlFor="photo" className="mb-1 text-sm font-medium text-gray-700">Photo</label>

@@ -1,17 +1,21 @@
-// src/components/ProjectAmountTransactionForm.js
 import React, { useState, useEffect } from 'react';
-import MessageModal from '../model/MessageModal';
+import { Loader2 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
-// Renamed clientId prop to projectId for clarity
-const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
-    // State to hold the form data. We now exclusively use 'projectId'.
+// TransactionForm handles both Income and manual Expense (like Transport) entries.
+const TransactionForm = ({ transaction, onClose, projectId, type }) => {
+    const isEditing = !!transaction;
+    const isIncome = type === 'Income';
+
     const [formData, setFormData] = useState({
-        projectId: projectId || '', // Initialize with projectId prop
+        projectId: projectId || '',
         transactionDate: '',
         amount: '',
         description: '',
+        type: type, // 'Income' or 'Expense'
+        // 'category' will specify the type of expense (e.g., 'Transport')
+        category: isIncome ? 'Income' : 'Transport Charges', 
     });
 
     const [submitting, setSubmitting] = useState(false);
@@ -26,24 +30,28 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
     };
 
     useEffect(() => {
+        // Initialize or populate form data
         if (transaction) {
-            // If a transaction is passed, populate the form for editing
             setFormData({
-                // Ensure projectId is correctly populated from the transaction object
-                projectId: transaction.projectId || projectId || '', // Use transaction.projectId if available
+                projectId: transaction.projectId || projectId || '',
                 transactionDate: formatDateToInput(transaction.transactionDate),
                 amount: transaction.amount || '',
                 description: transaction.description || '',
+                type: transaction.type || type,
+                category: transaction.category || (isIncome ? 'Income' : 'Transport Charges'),
             });
         } else {
-            // If no transaction is passed, initialize form for a new entry with today's date
             setFormData(prev => ({
                 ...prev,
-                projectId: projectId || '', // Ensure the projectId prop is used for new transactions
+                projectId: projectId || '',
                 transactionDate: formatDateToInput(new Date()),
+                amount: '',
+                description: '',
+                type: type,
+                category: isIncome ? 'Income' : 'Transport Charges',
             }));
         }
-    }, [transaction, projectId]); // Changed dependency to projectId
+    }, [transaction, projectId, type, isIncome]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -56,8 +64,8 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
         setFormError(null);
         setSuccessMessage(null);
 
-        if (!formData.transactionDate || !formData.amount) {
-            setFormError('Please fill in all required fields: Transaction Date and Amount.');
+        if (!formData.transactionDate || !formData.amount || !formData.projectId) {
+            setFormError('Please fill in all required fields (Project ID, Date, Amount).');
             setSubmitting(false);
             return;
         }
@@ -70,11 +78,7 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
 
         try {
             const token = localStorage.getItem('token');
-            if (!token) {
-                setFormError("Authentication token not found. Please log in.");
-                setSubmitting(false);
-                return;
-            }
+            if (!token) throw new Error("Authentication token not found. Please log in.");
 
             const url = transaction
                 ? `${API_BASE_URL}/transactions/${transaction._id}`
@@ -82,12 +86,13 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
             const method = transaction ? 'PUT' : 'POST';
 
             const payload = {
-                // இதுதான் முக்கியமான திருத்தம்: பேக்கெண்ட் 'project' என்ற பெயரை எதிர்பார்த்ததால்,
-                // இங்கு 'projectId' என்பதை 'project' என்று மாற்றப்பட்டுள்ளது.
-                project: formData.projectId,
+                // IMPORTANT: The backend expects 'project' for the ID, not 'projectId'
+                project: formData.projectId, 
                 transactionDate: formData.transactionDate,
                 amount: parseFloat(formData.amount),
                 description: formData.description || '',
+                type: formData.type,
+                category: formData.category, // Transport Charges or Income
             };
 
             const response = await fetch(url, {
@@ -101,13 +106,16 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || `Failed to ${transaction ? 'update' : 'add'} transaction.`);
+                throw new Error(errorData.message || `Failed to ${transaction ? 'update' : 'add'} ${formData.type}.`);
             }
 
-            setSuccessMessage(`Transaction ${transaction ? 'updated' : 'added'} successfully!`);
+            setSuccessMessage(`${formData.type} ${transaction ? 'updated' : 'added'} successfully!`);
+            
+            // Auto-close on success
             setTimeout(() => {
-                onClose();
-            }, 1500);
+                onClose(true); // Pass true to indicate successful submission and trigger data refresh
+            }, 1000); 
+
         } catch (error) {
             console.error('Form submission error:', error);
             setFormError(error.message || 'An unexpected error occurred.');
@@ -116,28 +124,47 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
         }
     };
 
+    const title = isEditing 
+        ? `Edit ${isIncome ? 'Income' : 'Transport Expense'}` 
+        : `Add New ${isIncome ? 'Income' : 'Transport Expense'}`;
+        
+    const submitButtonText = submitting 
+        ? 'Saving...' 
+        : (isEditing ? 'Update' : (isIncome ? 'Add Income' : 'Add Expense'));
+
     return (
-        <div className="p-6 bg-white rounded-lg shadow-lg max-w-lg w-full mx-auto">
-            <h2 className="text-2xl font-semibold mb-6 text-gray-800 text-center">{transaction ? 'Edit Transaction' : 'Add New Transaction'}</h2>
+        <div className="p-6 bg-white rounded-xl max-w-lg w-full">
+            <h2 className={`text-2xl font-bold mb-6 text-center ${isIncome ? 'text-green-700' : 'text-red-700'}`}>{title}</h2>
+            
             <form onSubmit={handleSubmit} className="space-y-4">
-                {/* projectId is implicitly handled by the context/parent, no need for a visible input */}
-                {/* If you wanted to display it (read-only), you could uncomment this and change clientId to projectId */}
                 
+                {/* Project ID (Read-only) */}
                 <div className="form-group">
-                    <label htmlFor="projectId" className="block text-sm font-medium text-gray-700">Project ID:</label>
+                    <label htmlFor="projectId" className="block text-sm font-medium text-gray-700">Project ID (Read Only):</label>
                     <input
                         type="text"
                         id="projectId"
                         name="projectId"
                         value={formData.projectId}
                         readOnly
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed text-xs"
+                    />
+                </div>
+                <div className='form-group'>
+                    <label className="block text-sm font-medium text-gray-700">Type:</label>
+                    <input
+                        type="text"
+                        id="type"
+                        name="type"
+                        value={formData.type}
+                        readOnly
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed text-xs"
                     />
                 </div>
                 
-
+                {/* Transaction Date */}
                 <div className="form-group">
-                    <label htmlFor="transactionDate" className="block text-sm font-medium text-gray-700">Transaction Date <span className="text-red-500">*</span></label>
+                    <label htmlFor="transactionDate" className="block text-sm font-medium text-gray-700">Date <span className="text-red-500">*</span></label>
                     <input
                         type="date"
                         id="transactionDate"
@@ -145,12 +172,13 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
                         value={formData.transactionDate}
                         onChange={handleChange}
                         required
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
                     />
                 </div>
 
+                {/* Amount */}
                 <div className="form-group">
-                    <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Amount <span className="text-red-500">*</span></label>
+                    <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Amount (₹) <span className="text-red-500">*</span></label>
                     <input
                         type="number"
                         id="amount"
@@ -160,11 +188,12 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
                         required
                         min="0"
                         step="0.01"
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
                         placeholder="e.g., 50000"
                     />
                 </div>
 
+                {/* Description */}
                 <div className="form-group">
                     <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description:</label>
                     <textarea
@@ -173,21 +202,35 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
                         value={formData.description}
                         onChange={handleChange}
                         rows="3"
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="e.g., Initial amount received"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                        placeholder={isIncome ? "e.g., Client Advance / Second Payment" : "e.g., Material delivery charges"}
                     ></textarea>
                 </div>
+                
+                {/* Error/Success Messages (using basic Tailwind styling instead of a full Modal for simplicity) */}
+                {formError && <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">{formError}</div>}
+                {successMessage && <div className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm">{successMessage}</div>}
 
-                {formError && <MessageModal message={formError} onClose={() => setFormError(null)} />}
-                {successMessage && <MessageModal message={successMessage} onClose={() => setSuccessMessage(null)} />}
 
-                <div className="form-actions flex justify-end space-x-3 mt-6">
-                    <button type="submit" disabled={submitting}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200">
-                        {submitting ? 'Saving...' : (transaction ? 'Update' : 'Save')}
+                <div className="form-actions flex justify-end space-x-3 pt-4">
+                    <button 
+                        type="submit" 
+                        disabled={submitting}
+                        className={`px-6 py-2 rounded-lg font-semibold shadow-md transition-colors duration-200 flex items-center justify-center ${
+                            submitting 
+                                ? 'bg-gray-400' 
+                                : (isIncome ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')
+                        } text-white`}
+                    >
+                        {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {submitButtonText}
                     </button>
-                    <button type="button" onClick={onClose} disabled={submitting}
-                        className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200">
+                    <button 
+                        type="button" 
+                        onClick={() => onClose(false)} // Pass false for no refresh
+                        disabled={submitting}
+                        className="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors duration-200 shadow-md"
+                    >
                         Cancel
                     </button>
                 </div>
@@ -196,4 +239,4 @@ const ProjectAmountTransactionForm = ({ transaction, onClose, projectId }) => {
     );
 };
 
-export default ProjectAmountTransactionForm;
+export default TransactionForm;

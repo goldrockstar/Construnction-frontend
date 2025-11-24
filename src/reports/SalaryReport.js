@@ -1,340 +1,444 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCw, Search, Briefcase, Calendar, FileText, IndianRupee, TrendingUp, TrendingDown, Download, Filter, PieChart } from 'lucide-react';
 
-// API Base URL
 const API_BASE_URL = 'http://localhost:5000/api';
 
 const SalaryReport = () => {
-  // State variables
-  const [projectsList, setProjectsList] = useState([]);
-  const [manpowerList, setManpowerList] = useState([]);
-  const [selectedProject, setSelectedProject] = useState('All');
-  const [selectedManpower, setSelectedManpower] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [reportData, setReportData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+    // State variables
+    const [projectsList, setProjectsList] = useState([]);
+    const [selectedProject, setSelectedProject] = useState('All');
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate] = useState('');
+    const [reportData, setReportData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [totalExpense, setTotalExpense] = useState(0);
+    const [totalIncome, setTotalIncome] = useState(0);
+    const [showFilters, setShowFilters] = useState(true);
 
-  // State variables for total salaries
-  const [totalProjectSalary, setTotalProjectSalary] = useState(0);
-  const [totalManpowerSalary, setTotalManpowerSalary] = useState(0);
+    // Helper function to format date
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'Invalid Date';
 
-  // State variable for filtered manpower list
-  const [filteredManpowerList, setFilteredManpowerList] = useState([]);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}-${month}-${year}`;
+        } catch (e) {
+            console.error("Date formatting error:", e);
+            return 'Format Error';
+        }
+    };
 
-  // Helper function to format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
+    // Helper to safely extract ID
+    const getResourceId = (resource) => {
+        if (!resource) return null;
+        if (typeof resource === 'object') return resource._id || resource.id;
+        return String(resource);
+    };
 
-  // Function to fetch dropdown data
-  const fetchDropdownData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // If token is not found, throw an error
-      if (!token) {
-        throw new Error('Token not found. Please log in.');
-      }
-      
-      // Fetching the list of projects
-      const projectsResponse = await fetch(`${API_BASE_URL}/projects`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+    // Function to fetch dropdown data
+    const fetchDropdownData = useCallback(async () => {
+        setError(null);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                throw new Error('Token not found. Please log in.');
+            }
 
-      if (!projectsResponse.ok) {
-        throw new Error(`Failed to fetch projects: ${projectsResponse.statusText}`);
-      }
-      const projectList = await projectsResponse.json();
-      setProjectsList(projectList);
-      console.log('Fetched projects:', projectList);
+            const projectsResponse = await fetch(`${API_BASE_URL}/projects`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            });
 
-      // Fetching the list of manpower
-      const manpowerResponse = await fetch(`${API_BASE_URL}/manpower`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!manpowerResponse.ok) {
-        throw new Error(`Failed to fetch manpower: ${manpowerResponse.statusText}`);
-      }
-      const fetchedManpower = await manpowerResponse.json();
-      setManpowerList(fetchedManpower);
-      setFilteredManpowerList(fetchedManpower); // Initially, set filtered list to all manpower
-      console.log('Fetched manpower:', fetchedManpower);
+            if (!projectsResponse.ok) {
+                throw new Error(`Failed to fetch projects: ${projectsResponse.statusText}`);
+            }
+            const projectList = await projectsResponse.json();
+            setProjectsList(projectList);
 
-    } catch (err) {
-      console.error("Error fetching dropdown data:", err);
-      setError("Error fetching dropdown data. Please try again later. " + err.message);
-    }
-  };
+        } catch (err) {
+            console.error("Error fetching dropdown data:", err);
+            setError("Error fetching initial data: " + err.message);
+        }
+    }, []);
 
-  // Filter manpower list based on selected project
-  useEffect(() => {
-    console.log("Selected project has changed:", selectedProject);
-    if (selectedProject === 'All') {
-      setFilteredManpowerList(manpowerList);
-      setSelectedManpower(''); // When project is 'All', reset manpower selection
-    } else {
-      const projectId = typeof selectedProject === 'object' ? selectedProject._id : selectedProject;
-      const filtered = manpowerList.filter(mp => {
-        // Check both possible fields for the project ID from the API response
-        const associatedProjectId = (mp.project && typeof mp.project === 'object') ? mp.project._id : mp.projectId;
-        return associatedProjectId === projectId;
-      });
-      setFilteredManpowerList(filtered);
-      // Auto-select first manpower in filtered list, otherwise reset
-      if (filtered.length > 0) {
-        setSelectedManpower(filtered[0].id || filtered[0]._id);
-      } else {
-        setSelectedManpower('');
-      }
-    }
-  }, [selectedProject, manpowerList]);
+    // Function to fetch report data
+    const handleSearch = async () => {
+        setLoading(true);
+        setError(null);
+        setReportData([]);
+        setTotalExpense(0);
+        setTotalIncome(0);
 
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) throw new Error('Token not found. Please log in.');
 
-  // Function to fetch report data on search button click
-  const handleSearch = async () => {
-    setLoading(true);
-    setError(null);
-    setReportData([]);
-    setTotalProjectSalary(0);
-    setTotalManpowerSalary(0);
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
 
-    try {
-      console.log("Search initiated. Selected manpower:", selectedManpower);
-      // Constructing API query parameters
-      const queryParams = new URLSearchParams({
-        expenditureType: 'Salary',
-        // Add projectId only if a project is selected
-        ...(selectedProject !== 'All' && { projectId: selectedProject }),
-        // Add manpowerId only if a manpower is selected
-        ...(selectedManpower && { manpowerId: selectedManpower }),
-        ...(fromDate && { fromDate: fromDate }),
-        ...(toDate && { toDate: toDate }),
-      }).toString();
+            const baseQueryParams = new URLSearchParams({
+                ...(selectedProject !== 'All' && { projectId: selectedProject }),
+                ...(fromDate && { fromDate: fromDate }),
+                ...(toDate && { toDate: toDate }),
+            });
 
-      console.log("Query Parameters for API call:", queryParams);
+            const transactionsResponse = await fetch(`${API_BASE_URL}/transactions?${baseQueryParams.toString()}`, { headers });
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Token not found. Please log in.');
-      }
-      
-      // API call to get the expenditure report
-      const response = await fetch(`${API_BASE_URL}/expenditures?${queryParams}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to fetch salary report: ${response.statusText}`);
-      }
-      const fetchedSalaries = await response.json();
+            if (!transactionsResponse.ok) {
+                const errorData = await transactionsResponse.json().catch(() => ({}));
+                throw new Error(errorData.message || `Failed to fetch transactions: ${transactionsResponse.statusText}`);
+            }
 
-      // Filter the data based on selected manpower if it is not an empty string
-      const filteredSalaries = selectedManpower
-        ? fetchedSalaries.filter(item => (item.manpowerId && typeof item.manpowerId === 'object' ? item.manpowerId._id : item.manpowerId) === selectedManpower)
-        : fetchedSalaries;
+            const fetchedTransactions = await transactionsResponse.json();
 
-      setReportData(filteredSalaries);
-      console.log('Fetched report data:', filteredSalaries);
+            const normalizedTransactions = (Array.isArray(fetchedTransactions) ? fetchedTransactions : [])
+                .filter(item => {
+                    const type = String(item.type).toLowerCase();
+                    return ['income', 'expense'].includes(type);
+                })
+                .map(item => ({
+                    id: item._id || item.id,
+                    projectId: getResourceId(item.project || item.projectId),
+                    amount: parseFloat(item.amount || 0),
+                    transactionDate: item.transactionDate,
+                    category: item.category || item.description || 'General',
+                    type: String(item.type).toLowerCase(),
+                    isExpense: String(item.type).toLowerCase() === 'expense',
+                    source: 'Transaction',
+                }));
 
-      // Calculate total salaries
-      const totalAmount = filteredSalaries.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
-      setTotalProjectSalary(totalAmount);
-      setTotalManpowerSalary(totalAmount);
+            let mergedData = [...normalizedTransactions];
 
-    } catch (err) {
-      console.error("Error searching for salary report:", err);
-      setError("Error searching for salary report: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+            if (selectedProject !== 'All') {
+                mergedData = mergedData.filter(item => String(item.projectId) === String(selectedProject));
+            }
 
-  // Fetch dropdown data on initial load
-  useEffect(() => {
-    fetchDropdownData();
-  }, []);
+            mergedData.sort((a, b) => new Date(b.transactionDate) - new Date(a.transactionDate));
+            setReportData(mergedData);
 
-  // JSX rendering
-  return (
-    <div className="p-8 bg-gray-100 min-h-screen font-sans">
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-6xl mx-auto">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Salary Report</h2>
+            const expenses = mergedData
+                .filter(item => item.isExpense)
+                .reduce((sum, item) => sum + item.amount, 0);
 
-        {/* Filter Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 items-end">
-          {/* Select Project */}
-          <div>
-            <label htmlFor="selectProject" className="block text-sm font-medium text-gray-700 mb-1">
-              Select Project
-            </label>
-            <select
-              id="selectProject"
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm transition duration-150 ease-in-out"
-            >
-              <option value="All">All Projects</option>
-              {projectsList.map((proj, index) => (
-                <option key={proj.id || proj._id || index} value={proj.id || proj._id}>
-                  {proj.name || proj.projectName}
-                </option>
-              ))}
-            </select>
-          </div>
+            const incomes = mergedData
+                .filter(item => !item.isExpense)
+                .reduce((sum, item) => sum + item.amount, 0);
 
-          {/* Select Manpower */}
-          <div>
-            <label htmlFor="selectManpower" className="block text-sm font-medium text-gray-700 mb-1">
-              Select Manpower
-            </label>
-            <select
-              id="selectManpower"
-              value={selectedManpower}
-              onChange={(e) => setSelectedManpower(e.target.value)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm transition duration-150 ease-in-out"
-            >
-              {/* First option when manpower list is empty */}
-              {filteredManpowerList.length === 0 && <option value="">No Manpower</option>}
-              {filteredManpowerList.map((mp, index) => (
-                <option key={mp.id || mp._id || index} value={mp.id || mp._id}>
-                  {mp.name} ({mp.role})
-                </option>
-              ))}
-            </select>
-          </div>
+            setTotalExpense(expenses);
+            setTotalIncome(incomes);
 
-          {/* From Date */}
-          <div>
-            <label htmlFor="fromDate" className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
-            </label>
-            <input
-              type="date"
-              id="fromDate"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-            />
-          </div>
+        } catch (err) {
+            console.error("Error searching report:", err);
+            setError("Error fetching data: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-          {/* To Date */}
-          <div>
-            <label htmlFor="toDate" className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
-            </label>
-            <input
-              type="date"
-              id="toDate"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-            />
-          </div>
+    useEffect(() => {
+        fetchDropdownData();
+    }, [fetchDropdownData]);
 
-          {/* Search Button */}
-          <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-center mt-4">
-            <button
-              onClick={handleSearch}
-              className="px-8 py-3 bg-blue-600 text-white font-medium rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200"
-              disabled={loading}
-            >
-              {loading ? 'Searching...' : 'Search'}
-            </button>
-          </div>
+    const netProfit = totalIncome - totalExpense;
+    const profitPercentage = totalIncome > 0 ? ((netProfit / totalIncome) * 100) : 0;
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 font-sans">
+            <div className="container mx-auto px-4 py-8">
+                
+
+                {/* Main Card */}
+                <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+                    
+                    {/* Header Section */}
+                    <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-600 p-8 text-white">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                            <div className="flex items-center space-x-4">
+                                <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                                    <PieChart className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-bold">Business Dashboard</h2>
+                                    <p className="text-blue-100 mt-1">Real-time business performance metrics</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-3">
+                                <button 
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className="flex items-center space-x-2 px-6 py-3 bg-white/20 rounded-xl hover:bg-white/30 transition-all duration-300 backdrop-blur-sm"
+                                >
+                                    <Filter className="w-5 h-5" />
+                                    <span>Filters</span>
+                                </button>
+                                {/* <button className="flex items-center space-x-2 px-6 py-3 bg-white/20 rounded-xl hover:bg-white/30 transition-all duration-300 backdrop-blur-sm">
+                                    <Download className="w-5 h-5" />
+                                    <span>Export PDF</span>
+                                </button> */}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filters Section */}
+                    {showFilters && (
+                        <div className="p-8 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                
+                                {/* Project Select */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                        <Briefcase className="w-4 h-4 mr-2 text-blue-500" />
+                                        Project Filter
+                                    </label>
+                                    <select 
+                                        value={selectedProject} 
+                                        onChange={(e) => setSelectedProject(e.target.value)}
+                                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm"
+                                    >
+                                        <option value="All">All Projects</option>
+                                        {projectsList.map((proj, index) => (
+                                            <option 
+                                                key={proj._id || proj.id || index} 
+                                                value={proj._id || proj.id}
+                                            >
+                                                {proj.name || proj.projectName || `Project ${index + 1}`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* From Date */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                        <Calendar className="w-4 h-4 mr-2 text-green-500" />
+                                        Start Date
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={fromDate} 
+                                        onChange={(e) => setFromDate(e.target.value)}
+                                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm"
+                                    />
+                                </div>
+
+                                {/* To Date */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                        <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                                        End Date
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={toDate} 
+                                        onChange={(e) => setToDate(e.target.value)}
+                                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm"
+                                    />
+                                </div>
+
+                                {/* Search Button */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-gray-700 opacity-0">
+                                        Action
+                                    </label>
+                                    <button 
+                                        onClick={handleSearch} 
+                                        disabled={loading}
+                                        className="w-full px-6 py-3.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:transform-none flex items-center justify-center space-x-2"
+                                    >
+                                        {loading ? (
+                                            <RefreshCw className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <Search className="w-5 h-5" />
+                                        )}
+                                        <span>{loading ? 'Analyzing...' : 'Generate Report'}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Error Message */}
+                    {error && (
+                        <div className="m-6 p-4 bg-red-50 border border-red-200 rounded-2xl backdrop-blur-sm">
+                            <p className="text-red-700 font-medium text-center">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Loading State */}
+                    {loading && (
+                        <div className="py-20 text-center">
+                            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                            <p className="text-gray-600 font-medium text-lg">Crunching numbers...</p>
+                            <p className="text-gray-500 text-sm mt-2">Analyzing financial data across all transactions</p>
+                        </div>
+                    )}
+
+                    {/* Results Section */}
+                    {!loading && reportData.length > 0 && (
+                        <div className="p-8">
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                {/* Income Card */}
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-6 rounded-2xl border border-green-200 shadow-lg">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-green-600 font-semibold mb-2 flex items-center">
+                                                <TrendingUp className="w-4 h-4 mr-2" />
+                                                TOTAL INCOME
+                                            </p>
+                                            <p className="text-3xl font-bold text-green-700">
+                                                ₹{totalIncome.toLocaleString('en-IN')}
+                                            </p>
+                                            <p className="text-green-600 text-sm mt-2">All revenue streams</p>
+                                        </div>
+                                        <div className="p-3 bg-green-500 rounded-xl shadow-lg">
+                                            <IndianRupee className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Expense Card */}
+                                <div className="bg-gradient-to-br from-red-50 to-pink-100 p-6 rounded-2xl border border-red-200 shadow-lg">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-red-600 font-semibold mb-2 flex items-center">
+                                                <TrendingDown className="w-4 h-4 mr-2" />
+                                                TOTAL EXPENSES
+                                            </p>
+                                            <p className="text-3xl font-bold text-red-700">
+                                                ₹{totalExpense.toLocaleString('en-IN')}
+                                            </p>
+                                            <p className="text-red-600 text-sm mt-2">Operational costs</p>
+                                        </div>
+                                        <div className="p-3 bg-red-500 rounded-xl shadow-lg">
+                                            <IndianRupee className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Net Profit Card */}
+                                <div className={`bg-gradient-to-br ${netProfit >= 0 ? 'from-blue-50 to-cyan-100 border-blue-200' : 'from-orange-50 to-red-100 border-orange-200'} p-6 rounded-2xl border shadow-lg`}>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className={`${netProfit >= 0 ? 'text-blue-600' : 'text-orange-600'} font-semibold mb-2 flex items-center`}>
+                                                <PieChart className="w-4 h-4 mr-2" />
+                                                NET {netProfit >= 0 ? 'PROFIT' : 'LOSS'}
+                                            </p>
+                                            <p className={`text-3xl font-bold ${netProfit >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                                                {netProfit >= 0 ? '+' : '-'}₹{Math.abs(netProfit).toLocaleString('en-IN')}
+                                            </p>
+                                            <p className={`${netProfit >= 0 ? 'text-blue-600' : 'text-orange-600'} text-sm mt-2`}>
+                                                {profitPercentage.toFixed(1)}% {netProfit >= 0 ? 'margin' : 'loss'}
+                                            </p>
+                                        </div>
+                                        <div className={`p-3 rounded-xl shadow-lg ${netProfit >= 0 ? 'bg-blue-500' : 'bg-orange-500'}`}>
+                                            <IndianRupee className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Transactions Table */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                                    <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                                        <FileText className="w-5 h-5 mr-2 text-blue-500" />
+                                        Transaction Details
+                                        <span className="ml-2 text-sm text-gray-500 font-normal">
+                                            ({reportData.length} records)
+                                        </span>
+                                    </h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                                            <tr>
+                                                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Project</th>
+                                                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Type</th>
+                                                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Description</th>
+                                                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                                                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {reportData.map((item, index) => {
+                                                const projectId = getResourceId(item.projectId);
+                                                const project = projectsList.find(p => String(p.id || p._id) === String(projectId));
+                                                const projectName = project ? (project.name || project.projectName) : 'Unknown Project';
+
+                                                return (
+                                                    <tr key={item.id || index} className="hover:bg-blue-50/50 transition-all duration-200 group">
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-sm font-medium text-gray-900 group-hover:text-blue-700">
+                                                                {projectName}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${
+                                                                item.isExpense 
+                                                                    ? 'bg-red-100 text-red-800 border border-red-200' 
+                                                                    : 'bg-green-100 text-green-800 border border-green-200'
+                                                            }`}>
+                                                                {item.isExpense ? 'EXPENSE' : 'INCOME'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-sm text-gray-700 font-medium">{item.category}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-sm text-gray-600 font-mono">{formatDate(item.transactionDate)}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className={`text-sm font-bold ${
+                                                                item.isExpense ? 'text-red-600' : 'text-green-600'
+                                                            }`}>
+                                                                {item.isExpense ? '- ' : '+ '}
+                                                                ₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Empty State */}
+                    {!loading && reportData.length === 0 && !error && (
+                        <div className="py-20 text-center">
+                            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-r from-blue-100 to-purple-100 rounded-3xl flex items-center justify-center">
+                                <FileText className="w-10 h-10 text-blue-400" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-600 mb-3">No Transactions Found</h3>
+                            <p className="text-gray-500 max-w-md mx-auto mb-8">
+                                {selectedProject === 'All' && !fromDate && !toDate
+                                    ? 'Start by selecting filters and generating your first financial report'
+                                    : 'Try adjusting your filters or date range to see transaction data'
+                                }
+                            </p>
+                            <button 
+                                onClick={() => setShowFilters(true)}
+                                className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 inline-flex items-center space-x-2"
+                            >
+                                <Filter className="w-5 h-5" />
+                                <span>Adjust Filters</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
-
-        {/* Error message */}
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-
-        {/* Loading spinner */}
-        {loading && (
-          <div className="text-center py-12">
-            <svg className="animate-spin h-10 w-10 text-gray-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.964l3-2.673z"></path>
-            </svg>
-            <p className="mt-4 text-lg text-gray-500">Loading...</p>
-          </div>
-        )}
-
-        {/* Report section */}
-        {!loading && reportData.length > 0 ? (
-          <div className="mt-8">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Report Details</h3>
-            <div className="overflow-x-auto rounded-lg shadow-lg border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Project Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Manpower Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">From Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">To Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reportData.map((item, index) => {
-                    // Get the project and manpower IDs correctly
-                    const projectId = item.projectId && typeof item.projectId === 'object' ? item.projectId._id : item.projectId;
-                    const manpowerId = item.manpowerId && typeof item.manpowerId === 'object' ? item.manpowerId._id : item.manpowerId;
-
-                    // Find the project and manpower objects
-                    const project = projectsList.find(p => (p.id || p._id) === projectId);
-                    const manpower = manpowerList.find(mp => (mp.id || mp._id) === manpowerId);
-                    
-                    // Conditionally get the names, defaulting to 'N/A'
-                    const projectName = project ? (project.name || project.projectName) : 'N/A';
-                    const manpowerName = manpower ? manpower.name : 'N/A';
-                    
-                    return (
-                      <tr key={item.id || item._id || index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{projectName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{manpowerName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(item.fromDate)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(item.toDate)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{parseFloat(item.amount || 0).toLocaleString('en-IN')}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Total salary section */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold text-gray-700">Total Project Salary:</span>
-                <span className="text-xl font-bold text-gray-900">₹{totalProjectSalary.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-700">Total Manpower Salary:</span>
-                <span className="text-xl font-bold text-gray-900">₹{totalManpowerSalary.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          !loading && <p className="text-gray-500 text-center py-8">No report data found. Please adjust your search criteria.</p>
-        )}
-      </div>
-    </div>
-  );
+    );
 };
 
 export default SalaryReport;

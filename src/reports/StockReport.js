@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Search, Building2, Package, Calendar, Download, TrendingUp, TrendingDown, Box } from 'lucide-react';
 
 const StockReport = () => {
   const [projectsList, setProjectsList] = useState([]);
@@ -7,319 +8,354 @@ const StockReport = () => {
   const [selectedMaterial, setSelectedMaterial] = useState('All');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [reportData, setReportData] = useState(null); // Single object for the complete report
+  const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Function to fetch data from the server
+  // Helper fetch
   const fetchData = async (url) => {
-    const headers = { 'Content-Type': 'application/json' };
-    const token = localStorage.getItem('token');
+    let attempt = 0;
+    const maxRetries = 3;
 
-    // Add Authorization header only if a token exists.
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    while (attempt < maxRetries) {
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        const token = localStorage.getItem("token");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: headers,
-    });
-
-    if (!response.ok) {
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to fetch data: ${response.statusText}`);
-      } else {
-        throw new Error(`Failed to fetch data. Server returned non-JSON response: ${response.status}`);
+        const res = await fetch(url, { method: "GET", headers });
+        if (!res.ok) {
+          let msg = `Error: ${res.status}`;
+          try {
+            const body = await res.json();
+            msg = body.message || msg;
+          } catch { }
+          throw new Error(msg);
+        }
+        return res.json();
+      } catch (err) {
+        attempt++;
+        if (attempt >= maxRetries) throw err;
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
       }
     }
-    return response.json();
   };
 
-  // This hook is for loading the dropdown data.
   useEffect(() => {
-    const fetchDropdownData = async () => {
+    const loadDropdowns = async () => {
       try {
-        const projects = await fetchData('http://localhost:5000/api/projects');
+        const projects = await fetchData("http://localhost:5000/api/projects");
+        const materials = await fetchData("http://localhost:5000/api/materials");
+        console.log("MATERIALS API RESULT:", materials);
         setProjectsList(projects);
-        console.log('Fetched projects:', projects);
-
-        const materials = await fetchData('http://localhost:5000/api/materials');
-        console.log('Fetched materials:', materials);
         setMaterialsList(materials);
       } catch (err) {
-        console.error("Error fetching dropdown data:", err);
-        setError("Error fetching dropdown data. Please check your server and ensure it is running.");
+        setError("Failed loading dropdown data.");
       }
     };
-    fetchDropdownData();
+    loadDropdowns();
   }, []);
 
   const handleSearch = async () => {
     setLoading(true);
     setError(null);
-    setReportData(null); // Resetting the report object
+    setReportData(null);
 
     try {
-      // First, get the material name for the selected materialId
-      const selectedMaterialObj = materialsList.find(mat => mat._id === selectedMaterial);
-      const selectedMaterialName = selectedMaterialObj?.materialNames?.[0] || 'All';
-      
       const mappingQueryParams = new URLSearchParams({
-        ...(selectedProject !== 'All' && { projectId: selectedProject }),
-        ...(selectedMaterialName !== 'All' && { materialName: selectedMaterialName }),
-        ...(fromDate && { fromDate: fromDate }),
-        ...(toDate && { toDate: toDate }),
-      }).toString();
-      
-      const usageQueryParams = new URLSearchParams({
-        ...(selectedProject !== 'All' && { projectId: selectedProject }),
-        ...(selectedMaterial !== 'All' && { materialId: selectedMaterial }),
-        ...(fromDate && { fromDate: fromDate }),
-        ...(toDate && { toDate: toDate }),
+        ...(selectedProject !== "All" && { projectId: selectedProject }),
+        ...(selectedMaterial !== "All" && { materialId: selectedMaterial }),
+        ...(fromDate && { fromDate }),
+        ...(toDate && { toDate })
       }).toString();
 
-      // Fetching both data sets at once
-      const [fetchedMappings, fetchedUsages] = await Promise.all([ 
-        fetchData(`http://localhost:5000/api/projectMaterialMappings?${mappingQueryParams}`), 
-        fetchData(`http://localhost:5000/api/material-usage?${usageQueryParams}`) 
-      ]);
+      const fetchedUsages = await fetchData(
+        `http://localhost:5000/api/projectMaterialMappings?${mappingQueryParams}`
+      );
 
-      console.log('Fetched Mappings:', fetchedMappings);
-      console.log('Fetched Usages:', fetchedUsages);
-
-      // Aggregating data from both sources
       const aggregatedData = {};
       let totalStockIn = 0;
       let totalStockOut = 0;
 
-      // First, get quantity from mappings
-      fetchedMappings.forEach(mapping => {
-        const material = materialsList.find(mat => mat.materialNames?.includes(mapping.materialName));
-        const materialId = material?._id || 'unknown_' + mapping.materialName.replace(/\s+/g, '-');
-        
-        if (!aggregatedData[materialId]) {
-          aggregatedData[materialId] = {
-            materialId,
-            stockIn: 0,
-            stockOut: 0,
-            materialName: material?.materialNames?.[0] || mapping.materialName || 'Unknown Material',
-            unit: material?.unit || mapping.unit || 'Units'
-          };
-        }
-        aggregatedData[materialId].stockIn += mapping.quantity || 0;
-        totalStockIn += mapping.quantity || 0;
+      materialsList.forEach(mat => {
+        if (selectedMaterial !== "All" && mat._id !== selectedMaterial) return;
+
+        aggregatedData[mat._id] = {
+          materialId: mat._id,
+          materialName: mat.materialNames?.[0] || "Unknown",
+          unit: mat.unitofMeasure || "Unit",
+          stockIn: mat.availableQuantity || 0,
+          stockOut: 0
+        };
+        totalStockIn += mat.availableQuantity || 0;
       });
 
-      // Then, update with quantityUsed from usages
-      fetchedUsages.forEach(usage => {
-        const materialId = usage.materialId;
-        if (!aggregatedData[materialId]) {
-          // This case should ideally not happen if data is consistent, but for safety
-          const material = materialsList.find(mat => mat._id === materialId);
-          aggregatedData[materialId] = {
-            materialId,
-            stockIn: 0,
-            stockOut: 0,
-            materialName: material?.materialNames?.[0] || 'Unknown Material',
-            unit: material?.unit || 'Units'
-          };
-        }
-        aggregatedData[materialId].stockOut += usage.quantityUsed || 0;
-        totalStockOut += usage.quantityUsed || 0;
+      fetchedUsages.forEach(u => {
+        const matId = u.materialId?._id || u.materialId;
+        if (!aggregatedData[matId]) return;
+
+        const qty = u.quantityUsed || 0;
+        aggregatedData[matId].stockOut += qty;
+        totalStockOut += qty;
       });
 
-      let stockDetails = Object.values(aggregatedData);
-      
-      // Filter the report data if a specific material is selected
-      if (selectedMaterial !== 'All') {
-        stockDetails = stockDetails.filter(item => item.materialId === selectedMaterial);
-      }
-      
-      const remainingStock = totalStockIn - totalStockOut;
+      const stockDetails = Object.values(aggregatedData);
 
       const finalReport = {
         totalStockIn,
         totalStockOut,
-        remainingStock,
+        remainingStock: totalStockIn - totalStockOut,
         stockDetails
       };
 
       setReportData(finalReport);
-      setLoading(false);
-
     } catch (err) {
-      console.error("Error searching stock report:", err);
-      setError("Error searching stock report: " + err.message);
-      setLoading(false);
+      console.error(err);
+      setError(err.message || "Failed generating report.");
     }
+
+    setLoading(false);
+  };
+
+  const ReportCard = ({ title, value, colorClass, icon: Icon, subtitle }) => (
+    <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 group">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          <p className={`text-3xl font-bold ${colorClass} mb-1`}>{value}</p>
+          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+        </div>
+        <div className={`p-3 rounded-xl ${colorClass.replace('text-', 'bg-').replace('-600', '-100')} group-hover:scale-110 transition-transform duration-300`}>
+          <Icon size={24} className={colorClass} />
+        </div>
+      </div>
+    </div>
+  );
+
+  const handleExport = () => {
+    // Simple export functionality - can be enhanced with proper CSV/PDF generation
+    const dataStr = JSON.stringify(reportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `stock-report-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
   };
 
   return (
-    <>
-      <div className="min-h-screen bg-gray-100 p-8 flex flex-col items-center font-sans">
-        <style>
-          {`
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            body {
-              font-family: 'Inter', sans-serif;
-            }
-            .loading-dots:after {
-              content: '...';
-              animation: loading-dots 1s infinite;
-            }
-            @keyframes loading-dots {
-              0%, 20% { content: '.'; }
-              40% { content: '..'; }
-              60% { content: '...'; }
-              80%, 100% { content: ''; }
-            }
-          `}
-        </style>
-        <div className="w-full max-w-5xl bg-white rounded-lg shadow-xl p-8 transition-transform duration-300">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Stock Report</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
+          <div className="flex items-center space-x-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                <Package className="h-8 w-8 mr-3 text-indigo-600" />
+                Material Stock Report
+              </h1>
+              <p className="text-gray-600 mt-1">Track and analyze material inventory movements</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleExport}
+              disabled={!reportData}
+              className="flex items-center px-4 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={18} className="mr-2" />
+              Export
+            </button>
+          </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {/* Select Project */}
-            <div className="flex flex-col">
-              <label htmlFor="selectProject" className="text-sm font-semibold text-gray-700 mb-2">
-                Select Project
+        {/* Filters Section */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Project Filter */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                <Building2 size={16} className="mr-2 text-indigo-600" />
+                Project
               </label>
-              <div className="relative">
-                <select
-                  id="selectProject"
-                  value={selectedProject}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white transition-colors duration-200"
-                >
-                  <option value="All">All Projects</option>
-                  {projectsList.map(proj => (
-                    <option key={proj._id || proj.id} value={proj._id || proj.id}>{proj.projectName || proj.name}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.5 8.5L10 13l4.5-4.5H5.5z" /></svg>
-                </div>
-              </div>
+              <select
+                value={selectedProject}
+                onChange={e => setSelectedProject(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 bg-gray-50"
+              >
+                <option value="All">All Projects</option>
+                {projectsList.map(p => (
+                  <option key={p._id} value={p._id}>{p.projectName}</option>
+                ))}
+              </select>
             </div>
 
-            {/* Select Material */}
-            <div className="flex flex-col">
-              <label htmlFor="selectMaterial" className="text-sm font-semibold text-gray-700 mb-2">
-                Select Material
+            {/* Material Filter */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                <Package size={16} className="mr-2 text-green-600" />
+                Material
               </label>
-              <div className="relative">
-                <select
-                  id="selectMaterial"
-                  value={selectedMaterial}
-                  onChange={(e) => setSelectedMaterial(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white transition-colors duration-200"
-                >
-                  <option value="All">All Materials</option>
-                  {materialsList.map(mat => (
-                    <option key={mat._id || mat.id} value={mat._id || mat.id}>{mat.materialNames?.[0]}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.5 8.5L10 13l4.5-4.5H5.5z" /></svg>
-                </div>
-              </div>
+              <select
+                value={selectedMaterial}
+                onChange={e => setSelectedMaterial(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 bg-gray-50"
+              >
+                <option value="All">All Materials</option>
+                {materialsList.map(m => (
+                  <option key={m._id} value={m._id}>{m.materialNames?.[0]}</option>
+                ))}
+              </select>
             </div>
 
             {/* From Date */}
-            <div className="flex flex-col">
-              <label htmlFor="fromDate" className="text-sm font-semibold text-gray-700 mb-2">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                <Calendar size={16} className="mr-2 text-blue-600" />
                 From Date
               </label>
-              <input
-                type="date"
-                id="fromDate"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+              <input 
+                type="date" 
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 bg-gray-50"
+                value={fromDate} 
+                onChange={e => setFromDate(e.target.value)} 
               />
             </div>
 
             {/* To Date */}
-            <div className="flex flex-col">
-              <label htmlFor="toDate" className="text-sm font-semibold text-gray-700 mb-2">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                <Calendar size={16} className="mr-2 text-purple-600" />
                 To Date
               </label>
-              <input
-                type="date"
-                id="toDate"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+              <input 
+                type="date" 
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 bg-gray-50"
+                value={toDate} 
+                onChange={e => setToDate(e.target.value)} 
               />
             </div>
           </div>
 
-          <div className="text-center mb-8">
+          {/* Search Button */}
+          <div className="text-center mt-6">
             <button
               onClick={handleSearch}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-lg transform transition-transform duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               disabled={loading}
+              className="flex items-center justify-center mx-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Searching...' : 'Search'}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Generating Report...
+                </>
+              ) : (
+                <>
+                  <Search size={20} className="mr-2" />
+                  Generate Report
+                </>
+              )}
             </button>
           </div>
+        </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-              <p className="ml-4 text-gray-600 font-medium">Searching Report<span className="loading-dots"></span></p>
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg mb-6 shadow-sm">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">!</span>
+                </div>
+              </div>
+              <div className="ml-3">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
             </div>
-          ) : error ? (
-            <p className="text-red-500 text-center py-6 font-medium">{error}</p>
-          ) : reportData ? (
-            // New UI section to display overall report totals
-            <div className="bg-white rounded-lg shadow-inner mt-6 p-4">
-              {/* <div className="flex flex-wrap justify-center sm:justify-between items-center text-center font-bold text-gray-800 border-b border-gray-200 pb-4 mb-4">
-                <div className="w-full sm:w-1/3 mb-2 sm:mb-0">
-                  <p className="text-sm text-gray-500">Stock-In</p>
-                  <p className="text-lg text-green-600">{reportData.totalStockIn}</p>
-                </div>
-                <div className="w-full sm:w-1/3 mb-2 sm:mb-0">
-                  <p className="text-sm text-gray-500">Stock-Out:</p>
-                  <p className="text-lg text-red-600">{reportData.totalStockOut}</p>
-                </div>
-                <div className="w-full sm:w-1/3">
-                  <p className="text-sm text-gray-500">Remaining Stock:</p>
-                  <p className="text-lg text-blue-600">{reportData.remainingStock}</p>
-                </div>
-              </div> */}
-              <h3 className="text-xl font-bold text-gray-800 p-4 border-b border-gray-200">Report Details</h3>
+          </div>
+        )}
+
+        {/* Report Section */}
+        {reportData && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <ReportCard 
+                title="Total Stock In" 
+                value={reportData.totalStockIn} 
+                colorClass="text-green-600" 
+                icon={TrendingUp}
+                subtitle="Initial inventory"
+              />
+              <ReportCard 
+                title="Total Stock Out" 
+                value={reportData.totalStockOut} 
+                colorClass="text-red-600" 
+                icon={TrendingDown}
+                subtitle="Materials used"
+              />
+              <ReportCard 
+                title="Remaining Stock" 
+                value={reportData.remainingStock} 
+                colorClass="text-blue-600" 
+                icon={Box}
+                subtitle="Current balance"
+              />
+            </div>
+
+            {/* Detailed Table */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900 flex items-center">
+                  <Package className="h-5 w-5 mr-2 text-indigo-600" />
+                  Material Stock Details
+                </h3>
+              </div>
+              
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gradient-to-r from-gray-50 to-indigo-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Material
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Stock-In
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Stock-Out
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Remaining Stock
-                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Material Name</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Stock In</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Stock Out</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Remaining</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Unit</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {/* Render the stockDetails from the single report object */}
-                    {reportData.stockDetails && reportData.stockDetails.map((item) => {
-                      const remaining = item.unit - item.stockOut;
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {reportData.stockDetails.map((row, index) => {
+                      const remaining = row.stockIn - row.stockOut;
                       return (
-                        <tr key={item.materialId} className="hover:bg-gray-50 transition-colors duration-200">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-medium">{item.materialName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600"> {item.unit}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.stockOut} </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{remaining}</td>
+                        <tr key={row.materialId} className="hover:bg-gray-50 transition-all duration-150">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{row.materialName}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-bold text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+                              {row.stockIn}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-bold text-red-700 bg-red-50 px-3 py-2 rounded-lg">
+                              {row.stockOut}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className={`text-sm font-bold px-3 py-2 rounded-lg ${
+                              remaining > 0 
+                                ? 'text-blue-700 bg-blue-50' 
+                                : 'text-orange-700 bg-orange-50'
+                            }`}>
+                              {remaining}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              {row.unit}
+                            </span>
+                          </td>
                         </tr>
                       );
                     })}
@@ -327,12 +363,10 @@ const StockReport = () => {
                 </table>
               </div>
             </div>
-          ) : (
-            <p className="text-gray-500 text-center py-6">Click 'Generate Report' to view the report.</p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 
