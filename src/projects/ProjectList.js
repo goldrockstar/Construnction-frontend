@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import ProjectForm from './ProjectForm';
 import Modal from '../model/Modal';
 import ConfirmModal from '../model/ConfirmModal';
-import { Edit, Trash2, PlusCircle, Building2, Users, DollarSign, Calendar, MoreVertical, FileText, Package, TrendingUp, Settings } from 'lucide-react';
+import { Edit, Trash2, PlusCircle, Building2, Users, TrendingUp, } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
-import Dropdown from '../model/Dropdown';
+import { FileText } from 'lucide-react';
 
 const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
@@ -122,40 +122,6 @@ const ProjectList = () => {
         fetchProjects();
     };
 
-    const navigateToTransactions = (project) => {
-        navigate(`/projects/${project._id}/transactions`, {
-            state: {
-                estimatedBudget: project.estimatedBudget,
-                projectName: project.projectName,
-                clientName: project.client?.clientName || 'N/A'
-            }
-        });
-    };
-
-    const navigateToClientInfo = (project) => {
-        navigate(`/projects/${project._id}/clientinfo`, {
-            state: {
-                projectName: project.projectName,
-                clientName: project.client?.clientName || 'N/A',
-            }
-        });
-    };
-
-    const navigateToMaterialMapping = (projectId) => {
-        navigate(`/projects/${projectId}/materialmapping`);
-    };
-
-    // const navigateToMaterialUsage = (projectId) => {
-    //     navigate(`/projects/${projectId}/materialusage`);
-    // };
-
-    const navigateToExpenditure = (projectId) => {
-        navigate(`/projects/${projectId}/expenditure`);
-    };
-
-    // const navigateToSalaryConfig = (projectId) => {
-    //     navigate(`/projects/${projectId}/salary-config`);
-    // };
 
     // Filter projects based on search term
     const filteredProjects = projects.filter(project =>
@@ -164,9 +130,7 @@ const ProjectList = () => {
         project.projectId?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Calculate statistics
     const totalProjects = projects.length;
-    const totalBudget = projects.reduce((sum, project) => sum + (project.estimatedBudget || 0), 0);
     const activeProjects = projects.filter(project => project.projectStatus === 'Active').length;
 
     if (loading) {
@@ -205,8 +169,7 @@ const ProjectList = () => {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {/* Total Projects Card */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-6 shadow-lg text-white">
                         <div className="flex items-center justify-between">
                             <div>
@@ -219,7 +182,6 @@ const ProjectList = () => {
                         </div>
                     </div>
 
-                    {/* Active Projects Card */}
                     <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 shadow-lg text-white">
                         <div className="flex items-center justify-between">
                             <div>
@@ -228,19 +190,6 @@ const ProjectList = () => {
                             </div>
                             <div className="bg-white/20 p-3 rounded-xl">
                                 <TrendingUp size={24} />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Total Budget Card */}
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl p-6 shadow-lg text-white">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-purple-100 text-sm font-medium">Total Budget</p>
-                                <p className="text-3xl font-bold mt-2">₹{totalBudget.toLocaleString('en-IN')}</p>
-                            </div>
-                            <div className="bg-white/20 p-3 rounded-xl">
-                                <DollarSign size={24} />
                             </div>
                         </div>
                     </div>
@@ -265,16 +214,7 @@ const ProjectList = () => {
                 {/* Error Message */}
                 {error && (
                     <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg mb-6 shadow-sm">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-                                    <span className="text-white text-xs font-bold">!</span>
-                                </div>
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-red-700 text-sm">{error}</p>
-                            </div>
-                        </div>
+                        <p className="text-red-700 text-sm">{error}</p>
                     </div>
                 )}
 
@@ -286,21 +226,6 @@ const ProjectList = () => {
                             <h3 className="text-xl font-semibold text-gray-600 mb-2">
                                 {searchTerm ? 'No matching projects found' : 'No projects found'}
                             </h3>
-                            <p className="text-gray-500 mb-6">
-                                {searchTerm 
-                                    ? 'Try adjusting your search terms' 
-                                    : 'Get started by creating your first project'
-                                }
-                            </p>
-                            {!searchTerm && (
-                                <button
-                                    onClick={handleAdd}
-                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all duration-200"
-                                >
-                                    <PlusCircle size={18} className="inline mr-2" />
-                                    Create First Project
-                                </button>
-                            )}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -311,11 +236,11 @@ const ProjectList = () => {
                                         <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Client</th>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Status</th>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Budget</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Actions</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Quick Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-100">
-                                    {filteredProjects.map((project, index) => (
+                                    {filteredProjects.map((project) => (
                                         <tr key={project._id} className="hover:bg-indigo-50/30 transition-all duration-150 group">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center space-x-3">
@@ -352,67 +277,15 @@ const ProjectList = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center justify-center space-x-2">
-                                                    <button
-                                                        onClick={() => handleEdit(project)}
-                                                        className="p-2 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-100 rounded-xl transition-all duration-200 transform hover:scale-110"
-                                                        title="Edit Project"
-                                                    >
+                                                    {/* Edit */}
+                                                    <button onClick={() => handleEdit(project)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg" title="Edit Project">
                                                         <Edit size={16} />
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleDelete(project._id)}
-                                                        className="p-2 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-xl transition-all duration-200 transform hover:scale-110"
-                                                        title="Delete Project"
-                                                    >
+                                                    
+                                                    {/* Delete */}
+                                                    <button onClick={() => handleDelete(project._id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg" title="Delete Project">
                                                         <Trash2 size={16} />
                                                     </button>
-                                                    <Dropdown>
-                                                        <div className="px-2 py-1 text-xs font-semibold text-gray-500 border-b border-gray-200">
-                                                            Project Actions
-                                                        </div>
-                                                        <button
-                                                            onClick={() => navigateToTransactions(project)}
-                                                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors duration-200"
-                                                        >
-                                                            <DollarSign size={14} className="mr-2" />
-                                                            Income & Expenses
-                                                        </button>
-                                                        <button
-                                                            onClick={() => navigateToClientInfo(project)}
-                                                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors duration-200"
-                                                        >
-                                                            <Users size={14} className="mr-2" />
-                                                            Client Info
-                                                        </button>
-                                                        <button
-                                                            onClick={() => navigateToMaterialMapping(project._id)}
-                                                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors duration-200"
-                                                        >
-                                                            <Package size={14} className="mr-2" />
-                                                            Material Allocation
-                                                        </button>
-                                                        {/* <button
-                                                            onClick={() => navigateToMaterialUsage(project._id)}
-                                                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors duration-200"
-                                                        >
-                                                            <FileText size={14} className="mr-2" />
-                                                            Material Usage
-                                                        </button> */}
-                                                        <button
-                                                            onClick={() => navigateToExpenditure(project._id)}
-                                                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors duration-200"
-                                                        >
-                                                            <TrendingUp size={14} className="mr-2" />
-                                                            ManPower Allocation
-                                                        </button>
-                                                        {/* <button
-                                                            onClick={() => navigateToSalaryConfig(project._id)}
-                                                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors duration-200"
-                                                        >
-                                                            <Settings size={14} className="mr-2" />
-                                                            Salary Config
-                                                        </button> */}
-                                                    </Dropdown>
                                                 </div>
                                             </td>
                                         </tr>
@@ -432,7 +305,7 @@ const ProjectList = () => {
                     )}
                     {showConfirmModal && (
                         <ConfirmModal
-                            message="Are you sure you want to delete this project? This action cannot be undone."
+                            message="Are you sure you want to delete this project?"
                             onConfirm={confirmDelete}
                             onCancel={() => setShowConfirmModal(false)}
                         />

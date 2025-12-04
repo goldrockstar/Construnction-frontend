@@ -4,7 +4,7 @@ import Modal from '../model/Modal';
 import ConfirmationModal from '../model/ConfirmationModal';
 import { Edit, Trash2, Plus, Users, Shield, Search } from 'lucide-react'; 
 
-const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api'; 
+const API_BASE_URL = 'http://localhost:5000/api'; 
 
 const RoleList = () => {
     const [roles, setRoles] = useState([]);
@@ -219,6 +219,7 @@ const RoleList = () => {
                                 <thead className="bg-gradient-to-r from-gray-50 to-indigo-50">
                                     <tr>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">S.No</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Role ID</th>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider">Role Name</th>
                                         <th className="px-6 py-4 text-center text-xs font-bold text-indigo-700 uppercase tracking-wider">Actions</th>
                                     </tr>
@@ -229,6 +230,17 @@ const RoleList = () => {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm font-medium text-gray-900 bg-indigo-100 w-8 h-8 rounded-full flex items-center justify-center">
                                                     {index + 1}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                                        <Shield className="h-4 w-4 text-blue-600" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-semibold text-gray-900">{role.roleId}</div>
+                                                        <div className="text-xs text-gray-500">Role ID</div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">

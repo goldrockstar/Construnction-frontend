@@ -10,17 +10,17 @@ import {
     PlusSquare,
     DollarSign,
     Receipt,
-    LogOut,
     ClipboardList,
     FileText,
     Warehouse,
     LineChart,
     ChevronRight,
     Building2,
-    BarChart3 // Replacing Report with BarChart3
+    BarChart3,
+    ArrowLeftRight // Icon for Transactions
 } from 'lucide-react';
 
-const Sidebar = ({  currentUserRole }) => {
+const Sidebar = ({ currentUserRole }) => {
     const [openMenus, setOpenMenus] = useState({});
 
     const toggleMenu = (menuName) => {
@@ -37,12 +37,6 @@ const Sidebar = ({  currentUserRole }) => {
             icon: LayoutDashboard,
             type: 'link'
         },
-        // {
-        //     name: 'Profile',
-        //     path: '/profile',
-        //     icon: UserCircle,
-        //     type: 'link'
-        // },
         {
             name: 'Settings',
             icon: Settings,
@@ -50,7 +44,8 @@ const Sidebar = ({  currentUserRole }) => {
             items: [
                 { name: 'Role', path: '/roles', icon: Users },
                 { name: 'Material', path: '/materials', icon: Package },
-                { name: 'Manpower', path: '/manpower', icon: Users }
+                { name: 'Manpower', path: '/manpower', icon: Users },
+                { name: 'Client', path: '/clientinfo', icon: UserCircle },
             ]
         },
         {
@@ -59,29 +54,27 @@ const Sidebar = ({  currentUserRole }) => {
             type: 'dropdown',
             items: [
                 { name: 'Project List', path: '/projects', icon: PlusSquare },
+                { name: 'Income & Expense', path: '/transactions', icon: ArrowLeftRight, },
+                { name: 'Material Allocation', path: '/materialmapping', icon: Building2 },
+                { name: 'Manpower Allocation', path: 'expenditure', icon: UserCircle },
             ]
         },
+        
         { 
-          name: 'Quotation', 
-          path: '/quotation', 
-          icon: FileText ,
-          type: 'link'
+            name: 'Quotation', 
+            path: '/quotation', 
+            icon: FileText ,
+            type: 'link'
         },
         { 
-          name: 'Invoice List', 
-          path: '/invoices/:invoiceId', 
-          icon: ClipboardList, 
-          type: 'link'
+            name: 'Invoice List', 
+            path: '/invoices/:invoiceId', 
+            icon: ClipboardList, 
+            type: 'link'
         },
-        // {
-        //     name: 'Expenditure',
-        //     path: '/personal-expenditure',
-        //     icon: DollarSign,
-        //     type: 'link'
-        // },
         {
             name: 'Reports',
-            icon: BarChart3, // Using BarChart3 instead of Report
+            icon: BarChart3,
             type: 'dropdown',
             items: [
                 { name: 'Business Report', path: '/salary-report', icon: FileText },

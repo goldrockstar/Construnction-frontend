@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { XCircle, Loader2 } from 'lucide-react';
 
-const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) => {
     // Helper function to format date for the input field
@@ -253,7 +253,7 @@ const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) =
 
                         {/* 2. Material Name - Select Dropdown linked to Inventory */}
                         <div>
-                            <label htmlFor="materialSelection" className="block text-sm font-medium text-gray-700">Material Name (Select from Inventory):</label>
+                            <label htmlFor="materialSelection" className="block text-sm font-medium text-gray-700">Material Name:</label>
                             <div className="relative">
                                 <select
                                     id="materialSelection"
@@ -279,7 +279,7 @@ const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) =
 
                         {/* 4. Unit (Display - Auto-filled) */}
                         <div>
-                            <label htmlFor="unit" className="block text-sm font-medium text-gray-700">Unit (Auto-filled):</label>
+                            <label htmlFor="unit" className="block text-sm font-medium text-gray-700">Unit:</label>
                             <input
                                 type="text"
                                 id="unit"
@@ -293,7 +293,7 @@ const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) =
 
                         {/* 5. Unit Price (Display - Auto-filled from Inventory) */}
                         <div>
-                            <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700">Unit Price (Auto-filled from Inventory):</label>
+                            <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700">Purchase Unit Price:</label>
                             <input
                                 type="number"
                                 id="unitPrice"
@@ -311,7 +311,7 @@ const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) =
 
                         {/* 6. Quantity Issued (Display - Auto-filled from Inventory Available Quantity) */}
                         <div>
-                            <label htmlFor="quantityIssued" className="block text-sm font-medium text-gray-700">Quantity Issued:</label>
+                            <label htmlFor="quantityIssued" className="block text-sm font-medium text-gray-700">Purchase Quantity:</label>
                             <input
                                 type="number"
                                 id="quantityIssued"
@@ -365,7 +365,7 @@ const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) =
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4 mt-4 border-gray-200">
                         {/* 8. Total Cost (Calculated) */}
                         <div className="bg-indigo-50 p-3 rounded-md">
-                            <label className='block text-sm font-bold text-indigo-700'>Total Cost (Used * Price):</label>
+                            <label className='block text-sm font-bold text-indigo-700'>Total Cost:</label>
                             <input
                                 type="text"
                                 value={`₹ ${totalCost}`}
@@ -375,7 +375,7 @@ const ProjectMaterialMappingForm = ({ mapping, onClose, onUpdate, projectId }) =
                         </div>
                         {/* 9. Balance Quantity (Calculated) */}
                         <div className="bg-green-50 p-3 rounded-md">
-                            <label className='block text-sm font-bold text-green-700'>Balance Quantity (Issued - Used):</label>
+                            <label className='block text-sm font-bold text-green-700'>Balance Quantity:</label>
                             <input
                                 type="text"
                                 value={`${balanceQuantity} ${formData.unit || ''}`}

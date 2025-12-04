@@ -390,6 +390,19 @@ const InvoiceForm = ({ initialData, onClose }) => {
                             
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <Calendar className="w-4 h-4 mr-2 text-green-500" />
+                                    Due Date
+                                </label>
+                                <input 
+                                    type="date" 
+                                    name="dueDate" 
+                                    value={formData.dueDate} 
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
                                     <Building className="w-4 h-4 mr-2 text-purple-500" />
                                     Project *
                                 </label>

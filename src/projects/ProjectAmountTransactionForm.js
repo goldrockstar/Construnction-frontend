@@ -3,18 +3,20 @@ import { Loader2 } from 'lucide-react';
 
 const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
-// TransactionForm handles both Income and manual Expense (like Transport) entries.
 const TransactionForm = ({ transaction, onClose, projectId, type }) => {
     const isEditing = !!transaction;
     const isIncome = type === 'Income';
 
+    // New State for Project List
+    const [projectsList, setProjectsList] = useState([]);
+    const [loadingProjects, setLoadingProjects] = useState(false);
+
     const [formData, setFormData] = useState({
-        projectId: projectId || '',
+        projectId: projectId || '', // Default to prop if available
         transactionDate: '',
         amount: '',
         description: '',
-        type: type, // 'Income' or 'Expense'
-        // 'category' will specify the type of expense (e.g., 'Transport')
+        type: type, 
         category: isIncome ? 'Income' : 'Transport Charges', 
     });
 
@@ -29,12 +31,38 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
         return date.toISOString().split('T')[0];
     };
 
+    // 1. Fetch Projects List (To show in dropdown)
     useEffect(() => {
-        // Initialize or populate form data
+        const fetchProjects = async () => {
+            setLoadingProjects(true);
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+
+                const response = await fetch(`${API_BASE_URL}/projects`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch projects');
+
+                const data = await response.json();
+                const list = Array.isArray(data) ? data : (data.projects || []);
+                setProjectsList(list);
+            } catch (err) {
+                console.error("Error fetching projects:", err);
+            } finally {
+                setLoadingProjects(false);
+            }
+        };
+        fetchProjects();
+    }, []);
+
+    // 2. Initialize Form Data
+    useEffect(() => {
         if (transaction) {
             setFormData({
                 projectId: transaction.projectId || projectId || '',
-                transactionDate: formatDateToInput(transaction.transactionDate),
+                transactionDate: formatDateToInput(transaction.transactionDate || transaction.date),
                 amount: transaction.amount || '',
                 description: transaction.description || '',
                 type: transaction.type || type,
@@ -64,8 +92,15 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
         setFormError(null);
         setSuccessMessage(null);
 
-        if (!formData.transactionDate || !formData.amount || !formData.projectId) {
-            setFormError('Please fill in all required fields (Project ID, Date, Amount).');
+        // Validation: Project ID must be selected
+        if (!formData.projectId) {
+            setFormError('Please select a Project.');
+            setSubmitting(false);
+            return;
+        }
+
+        if (!formData.transactionDate || !formData.amount) {
+            setFormError('Date and Amount are required.');
             setSubmitting(false);
             return;
         }
@@ -86,13 +121,12 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
             const method = transaction ? 'PUT' : 'POST';
 
             const payload = {
-                // IMPORTANT: The backend expects 'project' for the ID, not 'projectId'
-                project: formData.projectId, 
+                project: formData.projectId, // Use selected ID
                 transactionDate: formData.transactionDate,
                 amount: parseFloat(formData.amount),
                 description: formData.description || '',
                 type: formData.type,
-                category: formData.category, // Transport Charges or Income
+                category: formData.category,
             };
 
             const response = await fetch(url, {
@@ -111,9 +145,8 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
 
             setSuccessMessage(`${formData.type} ${transaction ? 'updated' : 'added'} successfully!`);
             
-            // Auto-close on success
             setTimeout(() => {
-                onClose(true); // Pass true to indicate successful submission and trigger data refresh
+                onClose(true); 
             }, 1000); 
 
         } catch (error) {
@@ -138,18 +171,28 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
             
             <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* Project ID (Read-only) */}
+                {/* Project Selection Dropdown (Replaces Read-Only ID) */}
                 <div className="form-group">
-                    <label htmlFor="projectId" className="block text-sm font-medium text-gray-700">Project ID (Read Only):</label>
-                    <input
-                        type="text"
+                    <label htmlFor="projectId" className="block text-sm font-medium text-gray-700">Select Project <span className="text-red-500">*</span></label>
+                    <select
                         id="projectId"
                         name="projectId"
                         value={formData.projectId}
-                        readOnly
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed text-xs"
-                    />
+                        onChange={handleChange}
+                        required
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 bg-white"
+                        // If projectId prop was passed (from Project List), lock this field. Otherwise allow selection.
+                        disabled={!!projectId || loadingProjects} 
+                    >
+                        <option value="">{loadingProjects ? 'Loading Projects...' : '-- Select a Project --'}</option>
+                        {projectsList.map(project => (
+                            <option key={project._id} value={project._id}>
+                                {project.projectName}
+                            </option>
+                        ))}
+                    </select>
                 </div>
+
                 <div className='form-group'>
                     <label className="block text-sm font-medium text-gray-700">Type:</label>
                     <input
@@ -207,10 +250,9 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
                     ></textarea>
                 </div>
                 
-                {/* Error/Success Messages (using basic Tailwind styling instead of a full Modal for simplicity) */}
+                {/* Error/Success Messages */}
                 {formError && <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">{formError}</div>}
                 {successMessage && <div className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm">{successMessage}</div>}
-
 
                 <div className="form-actions flex justify-end space-x-3 pt-4">
                     <button 
@@ -227,7 +269,7 @@ const TransactionForm = ({ transaction, onClose, projectId, type }) => {
                     </button>
                     <button 
                         type="button" 
-                        onClick={() => onClose(false)} // Pass false for no refresh
+                        onClick={() => onClose(false)} 
                         disabled={submitting}
                         className="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors duration-200 shadow-md"
                     >

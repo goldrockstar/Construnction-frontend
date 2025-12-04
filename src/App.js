@@ -40,7 +40,7 @@ import InvoicePrint from './components/InvoicePrintPage';
 import QuotationPrint from './components/QuotationPrintPage.js';
 
 // API base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
 const App = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -182,13 +182,12 @@ const App = () => {
                                 <Route path="/projects" element={<ProjectList />} />
                                 <Route path="/projects/add" element={<ProjectForm />} />
                                 <Route path="/projects/edit/:id" element={<ProjectForm />} />
-                                <Route path="/projects/:projectId/clientinfo" element={<ProjectClientInfo />} />
-                                <Route path="/projects/:projectId/materialmapping" element={<ProjectMaterialMapping />} />
-                                <Route path="/projects/:projectId/materialusage" element={<ProjectMaterialUsage />} />
-                                <Route path="/projects/:projectId/expenditure" element={<Expenditure />} />
-                                <Route path="/projects/:projectId/salary-config" element={<SalaryConfig />} />
-                                <Route path="/projects/:projectId/transactions" element={<ProjectAmountTransaction />} />
-                                <Route path="/clients/:projectId/transactions" element={<ProjectAmountTransaction />} />
+                                <Route path="/clientinfo" element={<ProjectClientInfo />} />
+                                <Route path="/materialmapping" element={<ProjectMaterialMapping />} />
+                                <Route path="/materialusage" element={<ProjectMaterialUsage />} />
+                                <Route path="/expenditure" element={<Expenditure />} />
+                                <Route path="/salary-config" element={<SalaryConfig />} />
+                                <Route path="/transactions" element={<ProjectAmountTransaction />} />
                                 <Route path="/quotation" element={<Quotation />} />
                                 <Route path="/quotations/print/:id" element={<QuotationPrint />} />
                                 <Route path="/invoices/:invoiceId" element={<Invoice />} />

@@ -4,7 +4,7 @@ import Modal from '../model/Modal';
 import ConfirmationModal from '../model/ConfirmationModal';
 import { Edit, PlusCircle, Trash2, Users, Phone, MapPin, DollarSign, Search, User, Briefcase } from 'lucide-react';
 
-const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const ManpowerList = () => {
     const [manpower, setManpower] = useState([]);
@@ -139,7 +139,7 @@ const ManpowerList = () => {
             </div>
         );
         
-        const fullUrl = `https://construction-backend-uwd8.onrender.com${photoPath.startsWith('/') ? photoPath : `/${photoPath}`}`;
+        const fullUrl = `http://localhost:5000${photoPath.startsWith('/') ? photoPath : `/${photoPath}`}`;
         
         return (
             <img 

@@ -1,30 +1,37 @@
-// src/settings/RoleForm.js
 import React, { useState, useEffect } from 'react';
 
-const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api'; // உங்கள் API அடிப்படை URL
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const RoleForm = ({ role, onClose }) => {
     const [formData, setFormData] = useState({
-        name: '',
-        description: '',
+        roleId: role ? role.roleId : 'Loading...', // Default
+        name: role ? role.name : '',
+        description: role ? role.description : '',
     });
 
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
 
-    // Populate form data if a role is passed for editing
     useEffect(() => {
-        if (role) {
-            setFormData({
-                name: role.name || '',
-                description: role.description || '',
-            });
-        } else {
-            setFormData({
-                name: '',
-                description: '',
-            });
+        // புதிய ரோல் உருவாக்கும் போது மட்டும் அடுத்த ஐடியை எடுக்கவும்
+        if (!role) {
+            const fetchNextId = async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`${API_BASE_URL}/roles/next-id`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        setFormData(prev => ({ ...prev, roleId: data.roleId }));
+                    }
+                } catch (error) {
+                    console.error("Error fetching next role ID:", error);
+                    setFormData(prev => ({ ...prev, roleId: 'Auto-Generated' }));
+                }
+            };
+            fetchNextId();
         }
     }, [role]);
 
@@ -60,11 +67,14 @@ const RoleForm = ({ role, onClose }) => {
                     body: JSON.stringify(formData),
                 });
             } else {
+                // Create செய்யும் போது roleId-ஐ அனுப்ப வேண்டிய அவசியமில்லை (Backend பார்த்துக்கொள்ளும்)
+                // ஆனால் காட்டிக்கொள்வதற்காக நாம் fetch செய்தோம்.
                 response = await fetch(rolesApiUrl, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({
-                        ...formData,
+                        name: formData.name,
+                        description: formData.description,
                         createdAt: new Date().toISOString(),
                     }),
                 });
@@ -96,6 +106,18 @@ const RoleForm = ({ role, onClose }) => {
                 </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="flex flex-col">
+                    <label htmlFor="roleId" className="mb-1 text-sm font-medium text-gray-700">Role ID:</label>
+                    <input
+                        type="text"
+                        id="roleId"
+                        name="roleId"
+                        value={formData.roleId}
+                        readOnly 
+                        disabled 
+                        className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none"
+                    />
+                </div>
                 <div className="flex flex-col">
                     <label htmlFor="name" className="mb-1 text-sm font-medium text-gray-700">Name:</label>
                     <input

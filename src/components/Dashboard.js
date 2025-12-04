@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { FolderOpen, CheckCircle, PiggyBank, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp, Building2, DollarSign, FileText, User, Calendar, BarChart3, Eye, Download, MoreVertical, Target, Award, Clock, Users, Package, ShoppingCart, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, } from 'recharts';
+import {
+    FolderOpen, CheckCircle, TrendingUp, TrendingDown, RefreshCw,
+    ChevronDown, ChevronUp, DollarSign, FileText,Target, Award, Clock,
+    Download, Eye, ArrowUpRight, ArrowDownRight
+} from 'lucide-react';
 
 const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
 
@@ -16,7 +20,8 @@ const formatDate = (dateString) => {
     }
 };
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+// Tamil Month Names
+const tamilMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
@@ -33,21 +38,20 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
         activeProjects: 0,
         pendingInvoices: 0
     });
-    
-    const [chartData, setChartData] = useState([]);
-    const [revenueData, setRevenueData] = useState([]);
-    const [projectStatusData, setProjectStatusData] = useState([]);
 
-    // --- Dropdown States ---
-    const [projectsDetailList, setProjectsDetailList] = useState([]); 
-    const [invoicesDetailList, setInvoicesDetailList] = useState([]); 
-    const [expensesDetailList, setExpensesDetailList] = useState([]); 
-    
+    const [chartData, setChartData] = useState([]);
+    const [ setRevenueData] = useState([]);
+
+    // --- Dropdown List States ---
+    const [projectsDetailList, setProjectsDetailList] = useState([]);
+    const [incomesDetailList, setIncomesDetailList] = useState([]);
+    const [expensesDetailList, setExpensesDetailList] = useState([]);
+
     // --- Dropdown Toggle States ---
-    const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(false); 
-    const [isInvoicesDropdownOpen, setIsInvoicesDropdownOpen] = useState(false); 
-    const [isExpensesDropdownOpen, setIsExpensesDropdownOpen] = useState(false); 
-    
+    const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(false);
+    const [isIncomesDropdownOpen, setIsIncomesDropdownOpen] = useState(false);
+    const [isExpensesDropdownOpen, setIsExpensesDropdownOpen] = useState(false);
+
     const [loading, setLoading] = useState(false);
 
     // --- Data Fetching Logic ---
@@ -61,13 +65,13 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            if (!token) return; 
+            if (!token) return;
             const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
             // Fetch Projects
             const projectsRes = await fetch(`${API_BASE_URL}/projects`, { headers });
             const projectsData = await projectsRes.json();
-            
+
             let projectsList = [];
             if (Array.isArray(projectsData)) projectsList = projectsData;
             else if (projectsData.projects) projectsList = projectsData.projects;
@@ -82,27 +86,28 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
             // Fetch Invoices
             const invoicesRes = await fetch(`${API_BASE_URL}/invoices`, { headers });
             const invoicesData = await invoicesRes.json();
-            
-            const totalRevenue = invoicesData.reduce((sum, inv) => sum + (parseFloat(inv.grandTotal || inv.totalAmount) || 0), 0);
             const pendingInvoices = invoicesData.filter(inv => new Date(inv.dueDate) > new Date()).length;
-            setInvoicesDetailList(invoicesData);
 
-            // Fetch Expenses
+            // Fetch Transactions
             let totalExpenses = 0;
+            let totalIncomeFromTransactions = 0;
             let allExpenses = [];
+            let allIncomes = [];
 
-            const expensePromises = projectsList.map(project => 
+            const transactionPromises = projectsList.map(project =>
                 fetch(`${API_BASE_URL}/transactions/summary/${project._id}`, { headers })
                     .then(res => res.json())
-                    .catch(err => ({ summary: { totalExpense: 0 }, allTransactions: [] }))
+                    .catch(err => ({ summary: { totalExpense: 0, totalIncome: 0 }, allTransactions: [] }))
             );
 
-            const summaries = await Promise.all(expensePromises);
-            
+            const summaries = await Promise.all(transactionPromises);
+
             summaries.forEach((data, index) => {
                 if (data && data.summary) {
                     totalExpenses += (parseFloat(data.summary.totalExpense) || 0);
+                    totalIncomeFromTransactions += (parseFloat(data.summary.totalIncome) || 0);
                 }
+
                 if (data && data.allTransactions && Array.isArray(data.allTransactions)) {
                     const projectExpenses = data.allTransactions
                         .filter(t => t.type === 'Expense')
@@ -111,13 +116,24 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                             projectName: projectsList[index]?.projectName || 'Unknown Project'
                         }));
                     allExpenses = [...allExpenses, ...projectExpenses];
+
+                    const projectIncomes = data.allTransactions
+                        .filter(t => t.type === 'Income')
+                        .map(t => ({
+                            ...t,
+                            projectName: projectsList[index]?.projectName || 'Unknown Project'
+                        }));
+                    allIncomes = [...allIncomes, ...projectIncomes];
                 }
             });
 
             allExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-            setExpensesDetailList(allExpenses);
+            allIncomes.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            // Calculate Profit/Loss
+            setExpensesDetailList(allExpenses);
+            setIncomesDetailList(allIncomes);
+
+            const totalRevenue = totalIncomeFromTransactions;
             const totalProfitLoss = totalRevenue - totalExpenses;
 
             setStats({
@@ -132,9 +148,8 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
             });
 
             // Generate Chart Data
-            generateChartData(invoicesData, allExpenses, selectedYear);
-            generateRevenueData(invoicesData, timeRange);
-            generateProjectStatusData(projectsList);
+            generateChartData(allIncomes, allExpenses, selectedYear);
+            generateRevenueData(allIncomes, timeRange);
 
         } catch (error) {
             console.error("Error loading dashboard stats:", error);
@@ -143,14 +158,18 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
         }
     };
 
-    const generateChartData = (invoices, expenses, year) => {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        let monthlyStats = months.map(name => ({ name, income: 0, expense: 0, profit: 0 }));
+    const generateChartData = (incomes, expenses, year) => {
+        let monthlyStats = tamilMonths.map(name => ({
+            name,
+            income: 0,
+            expense: 0,
+            profit: 0
+        }));
 
-        invoices.forEach(inv => {
-            const d = new Date(inv.invoiceDate);
+        incomes.forEach(income => {
+            const d = new Date(income.date);
             if (!isNaN(d) && d.getFullYear().toString() === year) {
-                monthlyStats[d.getMonth()].income += (parseFloat(inv.grandTotal || inv.totalAmount) || 0);
+                monthlyStats[d.getMonth()].income += (parseFloat(income.amount) || 0);
             }
         });
 
@@ -169,8 +188,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
         setChartData(monthlyStats);
     };
 
-    const generateRevenueData = (invoices, range) => {
-        // Simplified revenue data generation
+    const generateRevenueData = (incomes, range) => {
         const data = [
             { name: 'Q1', revenue: 450000, target: 500000 },
             { name: 'Q2', revenue: 620000, target: 600000 },
@@ -180,39 +198,26 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
         setRevenueData(data);
     };
 
-    const generateProjectStatusData = (projects) => {
-        const statusCount = {
-            'Completed': projects.filter(p => p.projectStatus === 'Completed').length,
-            'In Progress': projects.filter(p => p.projectStatus === 'In Progress').length,
-            'Planning': projects.filter(p => p.projectStatus === 'Planning').length,
-            'On Hold': projects.filter(p => p.projectStatus === 'On Hold').length,
-        };
-        
-        const data = Object.entries(statusCount).map(([name, value]) => ({ name, value }));
-        setProjectStatusData(data);
-    };
-
     const toggleDropdown = (dropdown) => {
         setIsProjectsDropdownOpen(dropdown === 'projects' ? !isProjectsDropdownOpen : false);
-        setIsInvoicesDropdownOpen(dropdown === 'invoices' ? !isInvoicesDropdownOpen : false);
+        setIsIncomesDropdownOpen(dropdown === 'incomes' ? !isIncomesDropdownOpen : false);
         setIsExpensesDropdownOpen(dropdown === 'expenses' ? !isExpensesDropdownOpen : false);
     };
 
+    // Stylish Stat Card Component
     const StatCard = ({ title, value, icon: Icon, color, change, onClick, isDropdownOpen }) => (
-        <div 
+        <div
             onClick={onClick}
-            className={`bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl cursor-pointer transition-all duration-300 transform hover:-translate-y-1 ${
-                isDropdownOpen ? 'ring-2 ring-blue-500' : ''
-            }`}
+            className={`bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl cursor-pointer transition-all duration-300 transform hover:-translate-y-1 ${isDropdownOpen ? 'ring-2 ring-blue-500' : ''
+                }`}
         >
             <div className="flex justify-between items-start mb-4">
                 <div>
                     <p className="text-gray-600 text-sm font-semibold uppercase tracking-wider">{title}</p>
                     <h2 className="text-3xl font-bold text-gray-800 mt-2">{value}</h2>
                     {change && (
-                        <div className={`flex items-center mt-2 text-sm font-medium ${
-                            change > 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
+                        <div className={`flex items-center mt-2 text-sm font-medium ${change > 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
                             {change > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
                             <span className="ml-1">{Math.abs(change)}%</span>
                         </div>
@@ -250,7 +255,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-800">Business Overview</h1>
-                        <p className="text-gray-600 mt-2">Welcome to your business dashboard</p>
+                        <p className="text-gray-600 mt-2">Welcome to your construction business dashboard</p>
                     </div>
                     <div className="flex flex-wrap gap-3">
                         <select
@@ -285,17 +290,17 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         onClick={() => toggleDropdown('projects')}
                         isDropdownOpen={isProjectsDropdownOpen}
                     />
-                    
+
                     <StatCard
                         title="Total Revenue"
                         value={`₹${stats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
                         icon={TrendingUp}
                         color="bg-green-500"
                         change={8}
-                        onClick={() => toggleDropdown('invoices')}
-                        isDropdownOpen={isInvoicesDropdownOpen}
+                        onClick={() => toggleDropdown('incomes')}
+                        isDropdownOpen={isIncomesDropdownOpen}
                     />
-                    
+
                     <StatCard
                         title="Total Expenses"
                         value={`₹${stats.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
@@ -305,7 +310,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         onClick={() => toggleDropdown('expenses')}
                         isDropdownOpen={isExpensesDropdownOpen}
                     />
-                    
+
                     <StatCard
                         title={stats.totalProfitLoss >= 0 ? 'Net Profit' : 'Net Loss'}
                         value={`₹${Math.abs(stats.totalProfitLoss).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
@@ -324,7 +329,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         color="bg-purple-500"
                         change={5}
                     />
-                    
+
                     <StatCard
                         title="Completed"
                         value={stats.completedProjects}
@@ -332,7 +337,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         color="bg-teal-500"
                         change={20}
                     />
-                    
+
                     <StatCard
                         title="Total Budget"
                         value={`₹${stats.totalBudget.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
@@ -340,7 +345,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         color="bg-indigo-500"
                         change={10}
                     />
-                    
+
                     <StatCard
                         title="Pending Invoices"
                         value={stats.pendingInvoices}
@@ -351,9 +356,9 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                 </div>
 
                 {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Income vs Expense Chart */}
-                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
+                <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
+                    {/* Financial Performance Chart */}
+                    <div className="bg-white/100 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-gray-800 flex items-center">
                                 <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
@@ -366,92 +371,63 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
+                                <AreaChart data={chartData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                                     <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: '#fff', 
-                                            border: 'none', 
-                                            borderRadius: '8px', 
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#fff',
+                                            border: 'none',
+                                            borderRadius: '8px',
                                             boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
                                             padding: '12px'
                                         }}
                                     />
                                     <Legend />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="income" 
-                                        name="Income" 
-                                        stroke="#10b981" 
-                                        strokeWidth={3}
-                                        dot={{ fill: '#10b981' }}
-                                        activeDot={{ r: 6 }}
+                                    <Area
+                                        type="monotone"
+                                        dataKey="income"
+                                        name="Income"
+                                        stroke="#10b981"
+                                        fill="#10b981"
+                                        fillOpacity={0.1}
+                                        strokeWidth={2}
                                     />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="expense" 
-                                        name="Expense" 
-                                        stroke="#ef4444" 
-                                        strokeWidth={3}
-                                        dot={{ fill: '#ef4444' }}
-                                        activeDot={{ r: 6 }}
+                                    <Area
+                                        type="monotone"
+                                        dataKey="expense"
+                                        name="Expense"
+                                        stroke="#ef4444"
+                                        fill="#ef4444"
+                                        fillOpacity={0.1}
+                                        strokeWidth={2}
                                     />
-                                </LineChart>
+                                </AreaChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    {/* Project Status Chart */}
-                    <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
+                    {/* Revenue vs Target Chart */}
+                    {/* <div className="bg-white/100 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
                         <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
-                            <BarChart3 className="w-5 h-5 mr-2 text-purple-600" />
-                            Project Status Distribution
+                            <Target className="w-5 h-5 mr-2 text-orange-600" />
+                            Revenue vs Target
                         </h3>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={projectStatusData}
-                                        cx="50%"
-                                        cy="50%"
-                                        labelLine={false}
-                                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                                        outerRadius={80}
-                                        fill="#8884d8"
-                                        dataKey="value"
-                                    >
-                                        {projectStatusData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
+                                <BarChart data={revenueData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                    <XAxis dataKey="name" stroke="#6b7280" />
+                                    <YAxis stroke="#6b7280" />
                                     <Tooltip />
-                                </PieChart>
+                                    <Legend />
+                                    <Bar dataKey="revenue" name="Actual Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="target" name="Target" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                                </BarChart>
                             </ResponsiveContainer>
                         </div>
-                    </div>
-                </div>
-
-                {/* Revenue vs Target Chart */}
-                <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-white/20">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
-                        <Target className="w-5 h-5 mr-2 text-orange-600" />
-                        Revenue vs Target
-                    </h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={revenueData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                <XAxis dataKey="name" stroke="#6b7280" />
-                                <YAxis stroke="#6b7280" />
-                                <Tooltip />
-                                <Legend />
-                                <Bar dataKey="revenue" name="Actual Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="target" name="Target" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* Dropdown Sections */}
@@ -479,11 +455,10 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                                             <td className="px-6 py-4 font-medium text-gray-900">{project.projectName}</td>
                                             <td className="px-6 py-4 text-gray-600">{project.client?.clientName || 'N/A'}</td>
                                             <td className="px-6 py-4">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                                    project.projectStatus === 'Completed' ? 'bg-green-100 text-green-800' :
-                                                    project.projectStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                                                    'bg-yellow-100 text-yellow-800'
-                                                }`}>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${project.projectStatus === 'Completed' ? 'bg-green-100 text-green-800' :
+                                                        project.projectStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                                            'bg-yellow-100 text-yellow-800'
+                                                    }`}>
                                                     {project.projectStatus}
                                                 </span>
                                             </td>
@@ -498,32 +473,32 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                     </div>
                 )}
 
-                {isInvoicesDropdownOpen && (
+                {isIncomesDropdownOpen && (
                     <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl border border-white/20 overflow-hidden animate-fade-in">
                         <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 text-white">
                             <h3 className="text-lg font-bold flex items-center">
-                                <FileText className="w-5 h-5 mr-2" />
-                                Recent Invoices
+                                <TrendingUp className="w-5 h-5 mr-2" />
+                                Income Transactions
                             </h3>
                         </div>
                         <div className="overflow-x-auto max-h-96">
                             <table className="w-full">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Invoice</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Client</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Project</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
                                         <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {invoicesDetailList.slice(0, 8).map((inv) => (
-                                        <tr key={inv._id} className="hover:bg-green-50/50 transition-colors">
-                                            <td className="px-6 py-4 font-medium text-gray-900">{inv.invoiceNumber || 'N/A'}</td>
-                                            <td className="px-6 py-4 text-gray-600">{formatDate(inv.invoiceDate)}</td>
-                                            <td className="px-6 py-4 text-gray-600">{inv.invoiceTo?.clientName || inv.invoiceTo?.name || 'N/A'}</td>
+                                    {incomesDetailList.slice(0, 8).map((inc, index) => (
+                                        <tr key={inc.id || index} className="hover:bg-green-50/50 transition-colors">
+                                            <td className="px-6 py-4 text-gray-600">{formatDate(inc.date)}</td>
+                                            <td className="px-6 py-4 font-medium text-gray-900">{inc.projectName}</td>
+                                            <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{inc.description || inc.source}</td>
                                             <td className="px-6 py-4 text-right font-bold text-green-600">
-                                                ₹{parseFloat(inv.grandTotal || inv.totalAmount || 0).toLocaleString('en-IN')}
+                                                ₹{parseFloat(inc.amount || 0).toLocaleString('en-IN')}
                                             </td>
                                         </tr>
                                     ))}
@@ -538,7 +513,7 @@ const Dashboard = ({ activeSection = 'overview', setActiveSection }) => {
                         <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 text-white">
                             <h3 className="text-lg font-bold flex items-center">
                                 <TrendingDown className="w-5 h-5 mr-2" />
-                                Recent Expenses
+                                Expense Details
                             </h3>
                         </div>
                         <div className="overflow-x-auto max-h-96">

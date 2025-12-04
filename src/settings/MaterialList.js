@@ -6,7 +6,7 @@ import MessageModal from '../model/MessageModal';
 import { Edit, Trash2, PlusCircle, Package, Search, DollarSign, Scale, TrendingUp, Box } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = 'https://construction-backend-uwd8.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const MaterialList = () => {
     const [materials, setMaterials] = useState([]);

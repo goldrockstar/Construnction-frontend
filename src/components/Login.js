@@ -18,7 +18,7 @@ const Login = ({ onLoginSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setError(null); // Clear previous errors
     setSuccess(false);
 
     try {
@@ -30,30 +30,47 @@ const Login = ({ onLoginSuccess }) => {
         body: JSON.stringify({ username, password }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.token) { 
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('userRole', data.role);
-          localStorage.setItem('userId', data._id); 
-
-          setSuccess(true);
-          
-          if (onLoginSuccess) {
-            onLoginSuccess(data.role);
-          }
-
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 1500); 
+      // 1. Check if response is ok
+      if (!response.ok) {
+        // Handle non-200 responses
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          // It's JSON error from your backend
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Login failed');
+        } else {
+          // It's likely an HTML error page (500/404 from Render/Nginx)
+          const text = await response.text();
+          console.error("Server returned non-JSON:", text);
+          throw new Error(`Server Error: ${response.status} ${response.statusText}`);
         }
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed.');
       }
+
+      // 2. Success Path
+      const data = await response.json();
+
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userRole', data.role);
+        localStorage.setItem('userId', data._id);
+
+        setSuccess(true);
+
+        if (onLoginSuccess) {
+          onLoginSuccess(data.role);
+        }
+
+        // Redirect
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      } else {
+        throw new Error('Token missing in server response');
+      }
+
     } catch (err) {
-      console.error('Login Error:', err);
-      setError(err.message || 'உள்நுழைவின்போது எதிர்பாராத பிழை ஏற்பட்டது.');
+      console.error('Login Exception:', err);
+      setError(err.message || 'Connection failed. Please check internet or server status.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +94,7 @@ const Login = ({ onLoginSuccess }) => {
               <p className="text-blue-100 text-sm">Business Management Suite</p>
             </div>
           </div>
-          
+
         </div>
 
         {/* Form Section */}
@@ -99,7 +116,7 @@ const Login = ({ onLoginSuccess }) => {
                   onChange={(e) => setUsername(e.target.value)}
                   required
                 />
-                
+
               </div>
             </div>
 
@@ -119,7 +136,7 @@ const Login = ({ onLoginSuccess }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
-                
+
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
